@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Micro:Bit Dodge Game</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a1a; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+  h1 { color: #AFA9EC; font-size: 20px; font-weight: 500; margin-bottom: 12px; }
+  #topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+  #canvas { display: block; border: 1px solid #534AB7; border-radius: 10px; background: #0a0a1a; }
+  button { padding: 8px 20px; border: 1px solid #534AB7; border-radius: 8px; background: #534AB7; color: #EEEDFE; font-size: 14px; cursor: pointer; }
+  button:hover { background: #3C3489; }
+  #btStatus { font-size: 13px; padding: 4px 12px; border-radius: 99px; background: #1a1a2e; color: #7F77DD; border: 1px solid #534AB7; }
+  #info { color: #7F77DD; font-size: 13px; margin-top: 4px; }
+  #scorebar { color: #AFA9EC; font-size: 14px; margin-top: 8px; }
+  #instructions { font-size: 13px; color: #7F77DD; background: #11112a; border-radius: 8px; padding: 12px 16px; margin-top: 14px; max-width: 640px; line-height: 1.7; }
+  #instructions a { color: #5DCAA5; }
+</style>
+</head>
+<body>
+
+<h1>Micro:Bit Dodge Game</h1>
+
+<div id="topbar">
+  <button id="btBtn" onclick="connectBluetooth()">Connect Micro:Bit</button>
+  <span id="btStatus">Not connected</span>
+  <span id="scorebar">Score: <strong id="scoreDisplay">0</strong> &nbsp; Best: <strong id="bestDisplay">0</strong></span>
+</div>
+
+<canvas id="canvas" width="640" height="400"></canvas>
+<div id="info">Keyboard arrow keys also work · Press Space to start</div>
+
+<div id="instructions">
+  <strong style="color:#AFA9EC">Micro:Bit setup reminder</strong><br>
+  1. Add the <strong>Bluetooth</strong> extension in MakeCode (擴展)<br>
+  2. Gear icon → Project Settings → <strong>No Pairing Required</strong><br>
+  3. Flash this code to your Micro:Bit:<br><br>
+  <code style="background:#0a0a1a;padding:8px;display:block;border-radius:6px;color:#5DCAA5">
+    bluetooth.startUartService()<br>
+    basic.forever(function () {<br>
+    &nbsp;&nbsp;bluetooth.uartWriteString("" + input.acceleration(Dimension.X) + "\n")<br>
+    &nbsp;&nbsp;basic.pause(50)<br>
+    })
+  </code><br>
+  4. Click <strong>Connect Micro:Bit</strong> above and select your device<br>
+  5. Tilt left/right to dodge the falling rocks!
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let player = { x: W/2, y: H - 60, w: 40, h: 30, speed: 5 };
+let rocks = [], score = 0, best = 0, gameOver = false, started = false;
+let tiltX = 0, keys = {};
+let btDevice = null, btChar = null, connected = false;
+let frame = 0, difficulty = 1;
+
+function drawPlayer(x, y) {
+  ctx.save();
+  ctx.shadowColor = '#7F77DD';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#AFA9EC';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 14);
+  ctx.lineTo(x - 16, y + 14);
+  ctx.lineTo(x - 6, y + 8);
+  ctx.lineTo(x, y + 14);
+  ctx.lineTo(x + 6, y + 8);
+  ctx.lineTo(x + 16, y + 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#534AB7';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 6, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawRock(r) {
+  ctx.save();
+  ctx.fillStyle = r.color;
+  ctx.shadowColor = r.color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  for (let i = 0; i < r.pts; i++) {
+    const angle = (i / r.pts) * Math.PI * 2;
+    const rad = r.r * (0.7 + 0.3 * Math.sin(i * 2.3 + r.seed));
+    const px = r.x + Math.cos(angle) * rad;
+    const py = r.y + Math.sin(angle) * rad;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function spawnRock() {
+  const colors = ['#F09595','#EF9F27','#5DCAA5','#85B7EB','#ED93B1'];
+  rocks.push({
+    x: 40 + Math.random() * (W - 80),
+    y: -30,
+    r: 14 + Math.random() * 20,
+    speed: (1.5 + Math.random() * 2) * difficulty,
+    pts: 6 + Math.floor(Math.random() * 4),
+    seed: Math.random() * 10,
+    color: colors[Math.floor(Math.random() * colors.length)]
+  });
+}
+
+function collides(r) {
+  return Math.abs(r.x - player.x) < r.r * 0.7 + 14 && Math.abs(r.y - player.y) < r.r * 0.7 + 12;
+}
+
+const stars = Array.from({length: 60}, () => ({
+  x: Math.random() * W, y: Math.random() * H,
+  s: Math.random() * 1.5 + 0.5, b: Math.random()
+}));
+
+function drawStars() {
+  stars.forEach(s => {
+    const alpha = 0.3 + 0.5 * Math.abs(Math.sin(frame * 0.01 + s.b * 10));
+    ctx.fillStyle = `rgba(180,180,255,${alpha})`;
+    ctx.fillRect(s.x, s.y, s.s, s.s);
+  });
+}
+
+function drawHUD() {
+  ctx.fillStyle = 'rgba(175,169,236,0.9)';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('Score: ' + score, 14, 24);
+  ctx.fillText('Best: ' + best, 14, 42);
+  if (connected) {
+    ctx.fillStyle = '#5DCAA5';
+    ctx.fillText('Tilt: ' + (tiltX > 0 ? '→' : tiltX < 0 ? '←' : '—') + ' (' + Math.abs(tiltX) + ')', W - 150, 24);
+  }
+}
+
+function drawStart() {
+  ctx.fillStyle = 'rgba(83,74,183,0.2)';
+  ctx.fillRect(W/2-160, H/2-80, 320, 160);
+  ctx.strokeStyle = '#534AB7';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(W/2-160, H/2-80, 320, 160);
+  ctx.fillStyle = '#AFA9EC';
+  ctx.font = '500 22px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Dodge the rocks!', W/2, H/2 - 30);
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#7F77DD';
+  ctx.fillText('Connect Micro:Bit and tilt to move', W/2, H/2);
+  ctx.fillText('Or use ← → arrow keys', W/2, H/2 + 24);
+  ctx.fillStyle = '#5DCAA5';
+  ctx.fillText('Press Space or click to start', W/2, H/2 + 56);
+  ctx.textAlign = 'left';
+}
+
+function drawGameOver() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+  rocks.forEach(drawRock);
+  ctx.fillStyle = 'rgba(10,10,26,0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#F09595';
+  ctx.font = '500 28px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Game Over', W/2, H/2 - 40);
+  ctx.fillStyle = '#AFA9EC';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('Score: ' + score, W/2, H/2);
+  ctx.fillStyle = '#5DCAA5';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('Best: ' + best, W/2, H/2 + 28);
+  ctx.fillStyle = '#7F77DD';
+  ctx.fillText('Press Space or click to restart', W/2, H/2 + 64);
+  ctx.textAlign = 'left';
+}
+
+function endGame() {
+  gameOver = true;
+  if (score > best) { best = score; document.getElementById('bestDisplay').textContent = best; }
+}
+
+function restartGame() {
+  player.x = W/2;
+  rocks = [];
+  score = 0;
+  frame = 0;
+  difficulty = 1;
+  gameOver = false;
+  started = true;
+  document.getElementById('scoreDisplay').textContent = 0;
+  requestAnimationFrame(loop);
+}
+
+function loop() {
+  if (gameOver) { drawGameOver(); return; }
+  frame++;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+
+  if (!started) { drawStart(); requestAnimationFrame(loop); return; }
+
+  difficulty = 1 + score * 0.002;
+  if (frame % Math.max(20, 90 - Math.floor(score / 10)) === 0) spawnRock();
+
+  let dx = 0;
+  if (connected) {
+    dx = tiltX * 0.04;
+  } else {
+    if (keys['ArrowLeft'] || keys['a']) dx = -player.speed;
+    if (keys['ArrowRight'] || keys['d']) dx = player.speed;
+  }
+  player.x = Math.max(20, Math.min(W - 20, player.x + dx));
+
+  rocks.forEach(r => r.y += r.speed);
+  rocks = rocks.filter(r => r.y < H + 40);
+
+  for (let r of rocks) {
+    if (collides(r)) { endGame(); return; }
+  }
+
+  rocks.forEach(drawRock);
+  drawPlayer(player.x, player.y);
+  drawHUD();
+
+  score++;
+  document.getElementById('scoreDisplay').textContent = score;
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ' && !started) started = true;
+  else if (e.key === ' ' && gameOver) restartGame();
+});
+document.addEventListener('keyup', e => keys[e.key] = false);
+canvas.addEventListener('click', () => {
+  if (!started) started = true;
+  else if (gameOver) restartGame();
+});
+
+const UART_SERVICE = '6e400001-b5b3-f393-e0a9-e50e24dcca9e';
+const UART_TX = '6e400003-b5b3-f393-e0a9-e50e24dcca9e';
+
+async function connectBluetooth() {
+  if (!navigator.bluetooth) {
+    alert('Web Bluetooth not supported. Use Chrome on desktop or Android.');
+    return;
+  }
+  const btn = document.getElementById('btBtn');
+  const status = document.getElementById('btStatus');
+  try {
+    btn.textContent = 'Connecting...';
+    btDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'BBC micro:bit' }],
+      optionalServices: [UART_SERVICE]
+    });
+    const server = await btDevice.gatt.connect();
+    const service = await server.getPrimaryService(UART_SERVICE);
+    btChar = await service.getCharacteristic(UART_TX);
+    await btChar.startNotifications();
+    btChar.addEventListener('characteristicvaluechanged', e => {
+      const text = new TextDecoder().decode(e.target.value).trim();
+      const val = parseInt(text);
+      if (!isNaN(val)) tiltX = val;
+    });
+    connected = true;
+    status.textContent = 'Connected!';
+    status.style.background = '#085041';
+    status.style.color = '#9FE1CB';
+    status.style.borderColor = '#0F6E56';
+    btn.textContent = 'Disconnect';
+    btn.onclick = () => { if (btDevice) btDevice.gatt.disconnect(); };
+    btDevice.addEventListener('gattserverdisconnected', () => {
+      connected = false;
+      tiltX = 0;
+      status.textContent = 'Disconnected';
+      status.style.background = '#1a1a2e';
+      status.style.color = '#7F77DD';
+      status.style.borderColor = '#534AB7';
+      btn.textContent = 'Connect Micro:Bit';
+      btn.onclick = connectBluetooth;
+    });
+  } catch (err) {
+    status.textContent = 'Failed — try again';
+    btn.textContent = 'Connect Micro:Bit';
+  }
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
