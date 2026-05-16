@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"> 
+<meta charset="UTF-8">
 <title>Micro:Bit Dodge Game</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -14,45 +14,46 @@ button { padding: 8px 18px; border: 1px solid #534AB7; border-radius: 8px; backg
 button:hover { background: #3C3489; }
 #status { font-size: 13px; padding: 3px 12px; border-radius: 99px; background: #1a1a2e; color: #7F77DD; border: 1px solid #534AB7; }
 #scorebar { color: #AFA9EC; font-size: 13px; }
-#log { color: #5DCAA5; font-size: 12px; margin-top: 6px; height: 18px; }
-#hint { color: #7F77DD; font-size: 12px; margin-top: 8px; text-align: center; line-height: 1.6; }
+#log { color: #5DCAA5; font-size: 12px; margin-top: 6px; min-height: 18px; text-align: center; }
+#hint { color: #7F77DD; font-size: 12px; margin-top: 8px; text-align: center; line-height: 1.8; }
 </style>
 </head>
 <body>
 
 <h1>Micro:Bit Dodge Game</h1>
-
 <div id="topbar">
   <button onclick="connectBT()">Connect Micro:Bit</button>
   <span id="status">Not connected</span>
   <span id="scorebar">Score: <b id="sc">0</b> &nbsp; Best: <b id="best">0</b></span>
 </div>
-
 <canvas id="c" width="480" height="380"></canvas>
-<div id="log">Waiting for Micro:Bit data...</div>
+<div id="log">Connect your Micro:Bit to start</div>
 <div id="hint">
-  Micro:Bit: A button = move left &nbsp;|&nbsp; B button = move right &nbsp;|&nbsp; A+B = start<br>
-  Keyboard: ← → arrow keys also work &nbsp;|&nbsp; Space = start/restart
+  Micro:Bit: A = move left &nbsp;|&nbsp; B = move right &nbsp;|&nbsp; A+B = start/restart<br>
+  Keyboard: ← → arrow keys &nbsp;|&nbsp; Space = start/restart
 </div>
 
 <script>
 const cv = document.getElementById('c');
 const cx = cv.getContext('2d');
 const W = cv.width, H = cv.height;
-const log = document.getElementById('log');
+const logEl = document.getElementById('log');
 
-let px = W/2, py = H - 55;
+function setLog(msg, col) { logEl.textContent = msg; logEl.style.color = col || '#5DCAA5'; }
+
+let px = W/2, py = H-55;
 let rocks = [], score = 0, best = 0;
 let gameOver = false, started = false;
 let frame = 0, diff = 1;
 let moveL = false, moveR = false;
 let connected = false;
-
 const SPEED = 6;
-const UART_SVC = '6e400001-b5b3-f393-e0a9-e50e24dcca9e';
-const UART_TX  = '6e400003-b5b3-f393-e0a9-e50e24dcca9e';
 
-// stars
+// Micro:Bit Button Service UUIDs
+const BTN_SVC  = 'e95d9882-251d-470a-a062-fa1922dfa9a8';
+const BTN_A    = 'e95dda90-251d-470a-a062-fa1922dfa9a8';
+const BTN_B    = 'e95dda91-251d-470a-a062-fa1922dfa9a8';
+
 const stars = Array.from({length:50}, () => ({
   x: Math.random()*W, y: Math.random()*H,
   s: Math.random()*1.5+0.3, b: Math.random()*10
@@ -60,7 +61,7 @@ const stars = Array.from({length:50}, () => ({
 
 function drawStars() {
   stars.forEach(s => {
-    const a = 0.3 + 0.4 * Math.abs(Math.sin(frame*0.01 + s.b));
+    const a = 0.3 + 0.4*Math.abs(Math.sin(frame*0.01+s.b));
     cx.fillStyle = `rgba(180,180,255,${a})`;
     cx.fillRect(s.x, s.y, s.s, s.s);
   });
@@ -68,177 +69,199 @@ function drawStars() {
 
 function drawShip(x, y) {
   cx.save();
-  cx.shadowColor = '#7F77DD'; cx.shadowBlur = 10;
-  cx.fillStyle = '#AFA9EC';
+  cx.shadowColor='#7F77DD'; cx.shadowBlur=10;
+  cx.fillStyle='#AFA9EC';
   cx.beginPath();
-  cx.moveTo(x, y-13); cx.lineTo(x-14, y+13);
-  cx.lineTo(x-5, y+7); cx.lineTo(x, y+12);
-  cx.lineTo(x+5, y+7); cx.lineTo(x+14, y+13);
+  cx.moveTo(x,y-13); cx.lineTo(x-14,y+13);
+  cx.lineTo(x-5,y+7); cx.lineTo(x,y+12);
+  cx.lineTo(x+5,y+7); cx.lineTo(x+14,y+13);
   cx.closePath(); cx.fill();
-  cx.fillStyle = '#534AB7';
+  cx.fillStyle='#534AB7';
   cx.beginPath();
-  cx.ellipse(x, y, 5, 7, 0, 0, Math.PI*2);
+  cx.ellipse(x,y,5,7,0,0,Math.PI*2);
   cx.fill();
   cx.restore();
 }
 
 function drawRock(r) {
   cx.save();
-  cx.fillStyle = r.col; cx.shadowColor = r.col; cx.shadowBlur = 6;
+  cx.fillStyle=r.col; cx.shadowColor=r.col; cx.shadowBlur=6;
   cx.beginPath();
-  for (let i=0; i<r.n; i++) {
-    const a = (i/r.n)*Math.PI*2;
-    const rad = r.r*(0.7+0.3*Math.sin(i*2.5+r.seed));
-    const bx = r.x+Math.cos(a)*rad, by = r.y+Math.sin(a)*rad;
-    i===0 ? cx.moveTo(bx,by) : cx.lineTo(bx,by);
+  for(let i=0;i<r.n;i++){
+    const a=(i/r.n)*Math.PI*2;
+    const rad=r.r*(0.7+0.3*Math.sin(i*2.5+r.seed));
+    const bx=r.x+Math.cos(a)*rad, by=r.y+Math.sin(a)*rad;
+    i===0?cx.moveTo(bx,by):cx.lineTo(bx,by);
   }
   cx.closePath(); cx.fill(); cx.restore();
 }
 
 function spawnRock() {
-  const cols = ['#F09595','#EF9F27','#5DCAA5','#85B7EB','#ED93B1'];
+  const cols=['#F09595','#EF9F27','#5DCAA5','#85B7EB','#ED93B1'];
   rocks.push({
-    x: 35+Math.random()*(W-70), y: -25,
-    r: 12+Math.random()*18,
-    speed: (1.2+Math.random()*1.8)*diff,
-    n: 6+Math.floor(Math.random()*4),
-    seed: Math.random()*10,
-    col: cols[Math.floor(Math.random()*cols.length)]
+    x:35+Math.random()*(W-70), y:-25,
+    r:12+Math.random()*18,
+    speed:(1.2+Math.random()*1.8)*diff,
+    n:6+Math.floor(Math.random()*4),
+    seed:Math.random()*10,
+    col:cols[Math.floor(Math.random()*cols.length)]
   });
 }
 
-function hits(r) {
-  return Math.abs(r.x-px)<r.r*0.65+12 && Math.abs(r.y-py)<r.r*0.65+11;
+function hits(r){ return Math.abs(r.x-px)<r.r*0.65+12 && Math.abs(r.y-py)<r.r*0.65+11; }
+
+function txt(t,x,y,size,col){
+  cx.fillStyle=col; cx.font=size+'px sans-serif'; cx.textAlign='center';
+  cx.fillText(t,x,y); cx.textAlign='left';
 }
 
-function text(t, x, y, size, col) {
-  cx.fillStyle = col; cx.font = size+'px sans-serif'; cx.textAlign = 'center';
-  cx.fillText(t, x, y); cx.textAlign = 'left';
+function drawStart(){
+  cx.fillStyle='rgba(83,74,183,0.18)';
+  cx.beginPath(); cx.roundRect(W/2-155,H/2-75,310,160,10); cx.fill();
+  cx.strokeStyle='#534AB7'; cx.lineWidth=1;
+  cx.beginPath(); cx.roundRect(W/2-155,H/2-75,310,160,10); cx.stroke();
+  txt('Dodge the Rocks!',W/2,H/2-28,22,'#AFA9EC');
+  txt('A+B on Micro:Bit to start',W/2,H/2+2,13,'#7F77DD');
+  txt('or press Space / click',W/2,H/2+22,13,'#7F77DD');
+  txt(connected?'Micro:Bit connected!':'Micro:Bit not connected',W/2,H/2+54,13,connected?'#5DCAA5':'#EF9F27');
 }
 
-function drawStart() {
-  cx.fillStyle = 'rgba(83,74,183,0.18)';
-  cx.roundRect(W/2-155, H/2-75, 310, 155, 10);
-  cx.fill();
-  cx.strokeStyle = '#534AB7'; cx.lineWidth = 1;
-  cx.roundRect(W/2-155, H/2-75, 310, 155, 10);
-  cx.stroke();
-  text('Dodge the Rocks!', W/2, H/2-30, 22, '#AFA9EC');
-  text('Press A+B on Micro:Bit to start', W/2, H/2, 13, '#7F77DD');
-  text('or press Space / click', W/2, H/2+22, 13, '#7F77DD');
-  text(connected ? '🎮 Micro:Bit connected!' : '⚠ Micro:Bit not connected', W/2, H/2+52, 13, connected ? '#5DCAA5' : '#EF9F27');
-}
-
-function drawOver() {
+function drawOver(){
   cx.clearRect(0,0,W,H);
   cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
   drawStars(); rocks.forEach(drawRock);
   cx.fillStyle='rgba(10,10,26,0.75)'; cx.fillRect(0,0,W,H);
-  text('Game Over', W/2, H/2-40, 28, '#F09595');
-  text('Score: '+score, W/2, H/2, 18, '#AFA9EC');
-  text('Best: '+best, W/2, H/2+28, 14, '#5DCAA5');
-  text('A+B or Space to restart', W/2, H/2+60, 13, '#7F77DD');
+  txt('Game Over',W/2,H/2-40,28,'#F09595');
+  txt('Score: '+score,W/2,H/2,18,'#AFA9EC');
+  txt('Best: '+best,W/2,H/2+30,14,'#5DCAA5');
+  txt('A+B or Space to restart',W/2,H/2+62,13,'#7F77DD');
 }
 
-function restart() {
+function restart(){
   px=W/2; rocks=[]; score=0; frame=0; diff=1;
   gameOver=false; started=true;
   document.getElementById('sc').textContent=0;
   requestAnimationFrame(loop);
 }
 
-function loop() {
-  if (gameOver) { drawOver(); return; }
+function loop(){
+  if(gameOver){drawOver();return;}
   frame++;
   cx.clearRect(0,0,W,H);
   cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
   drawStars();
-
-  if (!started) { drawShip(px,py); drawStart(); requestAnimationFrame(loop); return; }
-
-  diff = 1 + score*0.002;
-  if (frame % Math.max(18, 80-Math.floor(score/8)) === 0) spawnRock();
-
-  if (moveL) px = Math.max(18, px-SPEED);
-  if (moveR) px = Math.min(W-18, px+SPEED);
-
-  rocks.forEach(r => r.y += r.speed);
-  rocks = rocks.filter(r => r.y < H+40);
-  for (let r of rocks) { if (hits(r)) { if(score>best){best=score; document.getElementById('best').textContent=best;} gameOver=true; return; } }
-
+  if(!started){drawShip(px,py);drawStart();requestAnimationFrame(loop);return;}
+  diff=1+score*0.002;
+  if(frame%Math.max(18,80-Math.floor(score/8))===0) spawnRock();
+  if(moveL) px=Math.max(18,px-SPEED);
+  if(moveR) px=Math.min(W-18,px+SPEED);
+  rocks.forEach(r=>r.y+=r.speed);
+  rocks=rocks.filter(r=>r.y<H+40);
+  for(let r of rocks){
+    if(hits(r)){
+      if(score>best){best=score;document.getElementById('best').textContent=best;}
+      gameOver=true; return;
+    }
+  }
   rocks.forEach(drawRock);
-  drawShip(px, py);
-
+  drawShip(px,py);
   cx.fillStyle='rgba(175,169,236,0.85)'; cx.font='13px sans-serif';
-  cx.fillText('Score: '+score, 12, 22);
-  if (connected) { cx.fillStyle='#5DCAA5'; cx.fillText(moveL?'← A':'  ', 12, 40); cx.fillText(moveR?'B →':'  ', W-40, 40); }
-
+  cx.fillText('Score: '+score,12,22);
+  if(connected){
+    cx.fillStyle='#5DCAA5';
+    cx.fillText(moveL?'A':'',12,40);
+    cx.fillText(moveR?'B':'',W-20,40);
+  }
   score++;
   document.getElementById('sc').textContent=score;
   requestAnimationFrame(loop);
 }
 
-// keyboard
-document.addEventListener('keydown', e => {
-  if (e.key==='ArrowLeft') moveL=true;
-  if (e.key==='ArrowRight') moveR=true;
-  if (e.key===' ') { if(!started) started=true; else if(gameOver) restart(); }
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft') moveL=true;
+  if(e.key==='ArrowRight') moveR=true;
+  if(e.key===' '){if(!started)started=true;else if(gameOver)restart();}
 });
-document.addEventListener('keyup', e => {
-  if (e.key==='ArrowLeft') moveL=false;
-  if (e.key==='ArrowRight') moveR=false;
+document.addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft') moveL=false;
+  if(e.key==='ArrowRight') moveR=false;
 });
-cv.addEventListener('click', () => { if(!started) started=true; else if(gameOver) restart(); });
+cv.addEventListener('click',()=>{if(!started)started=true;else if(gameOver)restart();});
 
-// bluetooth
-async function connectBT() {
-  if (!navigator.bluetooth) { alert('Use Chrome on desktop or Android!'); return; }
-  const btn = document.querySelector('button');
-  const sta = document.getElementById('status');
-  try {
-    btn.textContent = 'Connecting...';
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{namePrefix:'BBC micro:bit'}],
-      optionalServices: [UART_SVC]
-    });
-    const server = await device.gatt.connect();
-    log.textContent = 'GATT connected, getting service...';
-    const svc = await server.getPrimaryService(UART_SVC);
-    log.textContent = 'Got service, getting characteristic...';
-    const char = await svc.getCharacteristic(UART_TX);
-    log.textContent = 'Got characteristic, enabling notifications...';
-    await char.startNotifications();
-    log.textContent = 'Notifications enabled! Waiting for data...';
+// Bluetooth Button Service
+async function connectBT(){
+  if(!navigator.bluetooth){alert('Use Chrome on desktop or Android!');return;}
+  const btn=document.querySelector('button');
+  const sta=document.getElementById('status');
+  try{
+    btn.textContent='Connecting...';
+    setLog('Searching for Micro:Bit...','#EF9F27');
 
-    char.addEventListener('characteristicvaluechanged', e => {
-      const txt = new TextDecoder().decode(e.target.value).trim();
-      log.textContent = 'Received: ' + txt + ' at ' + new Date().toLocaleTimeString();
-      if (txt === 'L') { moveL=true; setTimeout(()=>moveL=false, 150); }
-      if (txt === 'R') { moveR=true; setTimeout(()=>moveR=false, 150); }
-      if (txt === 'S') { if(!started) started=true; else if(gameOver) restart(); }
+    const device=await navigator.bluetooth.requestDevice({
+      filters:[{namePrefix:'BBC micro:bit'}],
+      optionalServices:[BTN_SVC]
     });
 
-    connected = true;
-    sta.textContent = 'Connected!';
-    sta.style.cssText = 'background:#085041;color:#9FE1CB;border:1px solid #0F6E56;font-size:13px;padding:3px 12px;border-radius:99px;';
-    btn.textContent = 'Disconnect';
-    btn.onclick = () => device.gatt.disconnect();
+    setLog('Found device, connecting...','#EF9F27');
+    const server=await device.gatt.connect();
 
-    device.addEventListener('gattserverdisconnected', () => {
+    setLog('Getting button service...','#EF9F27');
+    const svc=await server.getPrimaryService(BTN_SVC);
+
+    setLog('Getting button A...','#EF9F27');
+    const charA=await svc.getCharacteristic(BTN_A);
+    await charA.startNotifications();
+    charA.addEventListener('characteristicvaluechanged',e=>{
+      const val=e.target.value.getUint8(0);
+      setLog('Button A: '+val+' (1=pressed, 0=released)');
+      if(val===1){
+        moveL=true;
+        if(!started) started=true;
+        else if(gameOver) restart();
+      } else {
+        moveL=false;
+      }
+    });
+
+    setLog('Getting button B...','#EF9F27');
+    const charB=await svc.getCharacteristic(BTN_B);
+    await charB.startNotifications();
+    charB.addEventListener('characteristicvaluechanged',e=>{
+      const val=e.target.value.getUint8(0);
+      setLog('Button B: '+val+' (1=pressed, 0=released)');
+      if(val===1){
+        moveR=true;
+        if(!started && moveL) restart();
+      } else {
+        moveR=false;
+      }
+    });
+
+    connected=true;
+    sta.textContent='Connected!';
+    sta.style.cssText='background:#085041;color:#9FE1CB;border:1px solid #0F6E56;font-size:13px;padding:3px 12px;border-radius:99px;';
+    btn.textContent='Disconnect';
+    btn.onclick=()=>device.gatt.disconnect();
+    setLog('Ready! Press A=left, B=right, A+B=start','#5DCAA5');
+
+    device.addEventListener('gattserverdisconnected',()=>{
       connected=false; moveL=false; moveR=false;
       sta.textContent='Disconnected';
       sta.style.cssText='background:#1a1a2e;color:#7F77DD;border:1px solid #534AB7;font-size:13px;padding:3px 12px;border-radius:99px;';
       btn.textContent='Connect Micro:Bit';
       btn.onclick=connectBT;
-      log.textContent='Micro:Bit disconnected.';
+      setLog('Micro:Bit disconnected.','#F09595');
     });
 
-  } catch(err) {
-    log.textContent = 'Error: ' + err.message;
+  }catch(err){
+    setLog('Error: '+err.message,'#F09595');
     sta.textContent='Failed';
     btn.textContent='Connect Micro:Bit';
+    btn.onclick=connectBT;
   }
 }
+
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
