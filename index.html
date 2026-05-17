@@ -3,265 +3,602 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Micro:Bit Dodge Game</title>
+<title>Emotion Dance Game 情緒舞蹈</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0a1a; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-h1 { color: #AFA9EC; font-size: 18px; font-weight: 500; margin-bottom: 10px; }
-#topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
-canvas { display: block; border: 1px solid #534AB7; border-radius: 10px; }
-button { padding: 8px 18px; border: 1px solid #534AB7; border-radius: 8px; background: #534AB7; color: #EEEDFE; font-size: 14px; cursor: pointer; }
-button:hover { background: #3C3489; }
-#status { font-size: 13px; padding: 3px 12px; border-radius: 99px; background: #1a1a2e; color: #7F77DD; border: 1px solid #534AB7; }
-#scorebar { color: #AFA9EC; font-size: 13px; }
-#log { color: #5DCAA5; font-size: 12px; margin-top: 6px; min-height: 18px; text-align: center; }
-#hint { color: #7F77DD; font-size: 12px; margin-top: 8px; text-align: center; line-height: 1.8; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#111; font-family:'Segoe UI',sans-serif; overflow:hidden; user-select:none; }
+
+/* YouTube background */
+#yt-bg {
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  overflow:hidden;
+}
+#yt-bg iframe {
+  position:absolute;
+  top:50%; left:50%;
+  width:177.78vh; height:100vh;
+  min-width:100vw; min-height:56.25vw;
+  transform:translate(-50%,-50%);
+  border:none; opacity:0.35;
+  transition:opacity 1s;
+}
+#bg-color { position:fixed; inset:0; z-index:1; transition:background 0.8s; pointer-events:none; }
+canvas { position:fixed; inset:0; z-index:2; pointer-events:none; }
+#ui { position:fixed; inset:0; z-index:3; pointer-events:none; }
+
+#topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 20px; background:rgba(0,0,0,0.35); backdrop-filter:blur(6px); }
+#score-box { color:#fff; font-size:18px; font-weight:700; text-shadow:0 2px 8px #000; }
+#lives { font-size:24px; letter-spacing:3px; }
+#combo { color:#FFD700; font-size:14px; font-weight:700; min-height:20px; text-align:center; text-shadow:0 2px 8px #000; margin-top:2px; }
+
+#emotion-bar { display:flex; justify-content:center; gap:10px; padding:6px 16px; }
+.emo-key {
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  background:rgba(0,0,0,0.4); border:2px solid rgba(255,255,255,0.2);
+  border-radius:14px; padding:7px 13px; transition:all 0.12s;
+  backdrop-filter:blur(6px);
+}
+.emo-key.active { transform:scale(1.2); border-color:#fff; background:rgba(255,255,255,0.25); box-shadow:0 0 24px #fff5; }
+.emo-key .emoji { font-size:24px; }
+.emo-key .label { color:#fff; font-size:10px; font-weight:600; }
+.emo-key .key { color:#fff; font-size:9px; opacity:0.6; background:rgba(0,0,0,0.4); border-radius:4px; padding:1px 5px; }
+
+#prompt-box { position:absolute; top:46%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; }
+#prompt-emoji { font-size:88px; display:block; animation:float 1.8s ease-in-out infinite; filter:drop-shadow(0 4px 24px #000a); }
+#prompt-text { color:#fff; font-size:16px; font-weight:700; margin-top:6px; text-shadow:0 2px 12px #000; }
+#prompt-sub { color:rgba(255,255,255,0.7); font-size:12px; margin-top:3px; }
+
+/* Micro:Bit tilt indicator */
+#tilt-bar {
+  position:fixed; bottom:60px; left:50%; transform:translateX(-50%);
+  z-index:4; width:300px; height:14px;
+  background:rgba(0,0,0,0.4); border-radius:99px;
+  border:1px solid rgba(255,255,255,0.2); overflow:hidden;
+  display:none;
+}
+#tilt-indicator {
+  position:absolute; top:2px; width:10px; height:10px;
+  background:#fff; border-radius:50%;
+  left:50%; transform:translateX(-50%);
+  transition:left 0.05s;
+  box-shadow:0 0 8px #fff;
+}
+#bt-status {
+  position:fixed; top:60px; right:16px; z-index:5;
+  font-size:12px; padding:4px 12px; border-radius:99px;
+  background:rgba(0,0,0,0.5); color:#7F77DD;
+  border:1px solid #534AB7; backdrop-filter:blur(4px);
+  cursor:pointer; pointer-events:all;
+}
+
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+
+/* Progress bar */
+#progress-bar { position:fixed; bottom:0; left:0; height:5px; z-index:4; transition:width 0.3s, background 0.5s; }
+
+/* OVERLAYS */
+.full-overlay {
+  position:fixed; inset:0; z-index:20;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.88); backdrop-filter:blur(12px);
+  color:#fff; text-align:center; padding:28px;
+}
+.big-btn {
+  padding:13px 34px; font-size:17px; font-weight:700;
+  background:linear-gradient(135deg,#FF6B6B,#FFD93D,#6BCB77,#4D96FF);
+  border:none; border-radius:50px; cursor:pointer; pointer-events:all;
+  color:#fff; text-shadow:0 1px 4px #0005;
+  box-shadow:0 4px 24px #0004; transition:transform 0.12s; margin-top:10px;
+}
+.big-btn:hover { transform:scale(1.05); }
+.key-map { display:flex; gap:10px; justify-content:center; margin:10px 0; flex-wrap:wrap; }
+.key-item { background:rgba(255,255,255,0.1); border-radius:10px; padding:7px 13px; font-size:12px; }
+.key-item .k { font-size:20px; display:block; margin-bottom:2px; }
+
+/* Name input */
+#name-input {
+  font-size:22px; padding:10px 20px; border-radius:12px;
+  border:2px solid #534AB7; background:rgba(255,255,255,0.1);
+  color:#fff; text-align:center; outline:none; width:280px; margin:12px 0;
+  pointer-events:all;
+}
+#name-input::placeholder { color:rgba(255,255,255,0.4); }
+
+/* High score list */
+#scores-table { width:100%; max-width:400px; margin:10px auto; border-collapse:collapse; }
+#scores-table th { color:#AFA9EC; font-size:13px; padding:6px 10px; border-bottom:1px solid #534AB750; }
+#scores-table td { color:#fff; font-size:14px; padding:5px 10px; text-align:center; }
+#scores-table tr:nth-child(even) td { background:rgba(255,255,255,0.05); }
+.rank-gold { color:#FFD700; font-size:18px; }
+.rank-silver { color:#C0C0C0; font-size:16px; }
+.rank-bronze { color:#CD7F32; font-size:15px; }
+
+/* Level overlay */
+#level-overlay {
+  position:fixed; inset:0; z-index:15;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.88); backdrop-filter:blur(10px);
+  color:#fff; text-align:center; padding:20px;
+}
+#level-overlay h2 { font-size:26px; margin-bottom:6px; }
+#level-yt { width:440px; max-width:88vw; aspect-ratio:16/9; border-radius:12px; overflow:hidden; margin:8px 0; box-shadow:0 8px 32px #000c; }
+#level-yt iframe { width:100%; height:100%; border:none; }
+#ai-story { font-size:14px; opacity:0.85; max-width:440px; line-height:1.7; margin:8px auto; min-height:44px; }
+#continue-btn { padding:10px 28px; font-size:15px; background:#534AB7; border:none; border-radius:50px; color:#fff; cursor:pointer; pointer-events:all; margin-top:6px; }
 </style>
 </head>
 <body>
 
-<h1>Micro:Bit Dodge Game</h1>
-<div id="topbar">
-  <button onclick="connectBT()">Connect Micro:Bit</button>
-  <span id="status">Not connected</span>
-  <span id="scorebar">Score: <b id="sc">0</b> &nbsp; Best: <b id="best">0</b></span>
+<!-- YouTube background -->
+<div id="yt-bg"><iframe id="yt-bg-iframe" allow="autoplay" allowfullscreen></iframe></div>
+<div id="bg-color"></div>
+<canvas id="gc"></canvas>
+
+<div id="ui">
+  <div id="topbar">
+    <div id="score-box">
+      <span id="player-name-display"></span>
+      &nbsp;Score: <span id="sc">0</span> &nbsp;|&nbsp; Level: <span id="lv">1</span>
+    </div>
+    <div id="lives">❤️❤️❤️</div>
+  </div>
+  <div id="combo"></div>
+  <div id="emotion-bar">
+    <div class="emo-key" id="key-w"><span class="emoji">😄</span><span class="label">Happy 開心</span><span class="key">W↑</span></div>
+    <div class="emo-key" id="key-a"><span class="emoji">😡</span><span class="label">Angry 生氣</span><span class="key">A←</span></div>
+    <div class="emo-key" id="key-s"><span class="emoji">😢</span><span class="label">Sad 難過</span><span class="key">S↓</span></div>
+    <div class="emo-key" id="key-d"><span class="emoji">😌</span><span class="label">Calm 平靜</span><span class="key">D→</span></div>
+  </div>
+  <div id="prompt-box">
+    <span id="prompt-emoji">😄</span>
+    <div id="prompt-text">Express this emotion!</div>
+    <div id="prompt-sub">Step on W!</div>
+  </div>
 </div>
-<canvas id="c" width="480" height="380"></canvas>
-<div id="log">Connect your Micro:Bit to start</div>
-<div id="hint">
-  Micro:Bit: A = move left &nbsp;|&nbsp; B = move right &nbsp;|&nbsp; A+B = start/restart<br>
-  Keyboard: ← → arrow keys &nbsp;|&nbsp; Space = start/restart
+
+<div id="tilt-bar"><div id="tilt-indicator"></div></div>
+<div id="bt-status" onclick="connectBT()">🎮 Connect Micro:Bit</div>
+<div id="progress-bar"></div>
+
+<!-- NAME ENTRY OVERLAY -->
+<div class="full-overlay" id="name-overlay">
+  <h1 style="font-size:32px;margin-bottom:6px">🕺 Emotion Dance 情緒舞蹈 💃</h1>
+  <p style="font-size:14px;opacity:0.7;margin-bottom:16px;max-width:420px;line-height:1.7">Catch falling emojis by stepping on the matching emotion on your DDR pad!<br>Tilt your Micro:Bit left/right to move the target.</p>
+  <div class="key-map">
+    <div class="key-item"><span class="k">W↑</span>😄 Happy</div>
+    <div class="key-item"><span class="k">A←</span>😡 Angry</div>
+    <div class="key-item"><span class="k">S↓</span>😢 Sad</div>
+    <div class="key-item"><span class="k">D→</span>😌 Calm</div>
+  </div>
+  <p style="font-size:13px;color:#AFA9EC;margin-bottom:4px">Enter your name to join the leaderboard! 輸入你的名字</p>
+  <input id="name-input" type="text" maxlength="16" placeholder="Your name 你的名字..." />
+  <button class="big-btn" onclick="tryStart()">Start Dancing! 開始跳舞 🎵</button>
+  <div id="pre-scores" style="margin-top:18px;width:100%;max-width:400px">
+    <p style="font-size:13px;color:#AFA9EC;margin-bottom:6px">🏆 High Scores</p>
+    <table id="scores-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead><tbody id="scores-body"></tbody></table>
+  </div>
+</div>
+
+<!-- GAME OVER OVERLAY -->
+<div class="full-overlay" id="gameover-overlay" style="display:none">
+  <h1 style="font-size:30px">Game Over! 遊戲結束</h1>
+  <div style="font-size:56px;margin:10px 0" id="final-score-display">0</div>
+  <p id="final-msg" style="font-size:14px;opacity:0.8;max-width:400px;line-height:1.7"></p>
+  <div style="margin-top:14px;width:100%;max-width:400px">
+    <p style="font-size:13px;color:#AFA9EC;margin-bottom:6px">🏆 High Scores</p>
+    <table id="scores-table2"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead><tbody id="scores-body2"></tbody></table>
+  </div>
+  <button class="big-btn" onclick="resetGame()">Dance Again! 再跳一次 🎵</button>
+</div>
+
+<!-- LEVEL COMPLETE OVERLAY -->
+<div id="level-overlay">
+  <h2 id="level-title">Level Complete! 🎉</h2>
+  <div id="level-yt"><iframe id="level-yt-iframe" allow="autoplay" allowfullscreen></iframe></div>
+  <div id="ai-story">Loading message...</div>
+  <button id="continue-btn" onclick="continueGame()">Continue! 繼續 →</button>
 </div>
 
 <script>
-const cv = document.getElementById('c');
-const cx = cv.getContext('2d');
-const W = cv.width, H = cv.height;
-const logEl = document.getElementById('log');
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const EMO = {
+  w:{name:'Happy',zh:'開心',emoji:'😄',color:'#FFD93D',particle:'#FFD93D',
+     bgColor:'rgba(255,107,107,0.15)',
+     ytId:'3OY0MRbK9X8'}, // Happy kids - Alex Productions
+  a:{name:'Angry',zh:'生氣',emoji:'😡',color:'#FF4444',particle:'#FF6644',
+     bgColor:'rgba(139,0,0,0.2)',
+     ytId:'aHzBDM2p8j0'}, // Rock energy - Infraction
+  s:{name:'Sad',zh:'難過',emoji:'😢',color:'#4D96FF',particle:'#4D96FF',
+     bgColor:'rgba(10,22,40,0.25)',
+     ytId:'-jz1JHGkDJk'}, // Sad piano - Aylex
+  d:{name:'Calm',zh:'平靜',emoji:'😌',color:'#6BCB77',particle:'#6BCB77',
+     bgColor:'rgba(10,42,26,0.22)',
+     ytId:'8FsIiKFNzcE'}, // Peaceful piano - Epic Spectrum
+};
+const KEYS=['w','a','s','d'];
 
-function setLog(msg, col) { logEl.textContent = msg; logEl.style.color = col || '#5DCAA5'; }
+// Between-level videos
+const LEVEL_VIDEOS=['3OY0MRbK9X8','aHzBDM2p8j0','-jz1JHGkDJk','8FsIiKFNzcE'];
 
-let px = W/2, py = H-55;
-let rocks = [], score = 0, best = 0;
-let gameOver = false, started = false;
-let frame = 0, diff = 1;
-let moveL = false, moveR = false;
-let connected = false;
-const SPEED = 6;
-
-// Micro:Bit Button Service UUIDs
-const BTN_SVC  = 'e95d9882-251d-470a-a062-fa1922dfa9a8';
-const BTN_A    = 'e95dda90-251d-470a-a062-fa1922dfa9a8';
-const BTN_B    = 'e95dda91-251d-470a-a062-fa1922dfa9a8';
-
-const stars = Array.from({length:50}, () => ({
-  x: Math.random()*W, y: Math.random()*H,
-  s: Math.random()*1.5+0.3, b: Math.random()*10
-}));
-
-function drawStars() {
-  stars.forEach(s => {
-    const a = 0.3 + 0.4*Math.abs(Math.sin(frame*0.01+s.b));
-    cx.fillStyle = `rgba(180,180,255,${a})`;
-    cx.fillRect(s.x, s.y, s.s, s.s);
-  });
+// ══════════════════════════════════════════
+// HIGH SCORES (localStorage)
+// ══════════════════════════════════════════
+function getScores() {
+  try { return JSON.parse(localStorage.getItem('emoDanceScores')||'[]'); } catch(e){ return []; }
+}
+function saveScore(name, score, level) {
+  const scores = getScores();
+  scores.push({name, score, level, date:new Date().toLocaleDateString()});
+  scores.sort((a,b)=>b.score-a.score);
+  scores.splice(10); // keep top 10
+  localStorage.setItem('emoDanceScores', JSON.stringify(scores));
+}
+function renderScores(tbodyId) {
+  const scores = getScores();
+  const tb = document.getElementById(tbodyId);
+  if (!scores.length) { tb.innerHTML='<tr><td colspan="4" style="opacity:0.5;padding:10px">No scores yet! Be the first! 🎯</td></tr>'; return; }
+  const medals = ['🥇','🥈','🥉'];
+  tb.innerHTML = scores.map((s,i)=>`
+    <tr>
+      <td>${medals[i]||i+1}</td>
+      <td>${s.name}</td>
+      <td style="color:${i===0?'#FFD700':i===1?'#C0C0C0':i===2?'#CD7F32':'#fff'};font-weight:${i<3?'700':'400'}">${s.score}</td>
+      <td style="opacity:0.7">Lv${s.level}</td>
+    </tr>`).join('');
 }
 
-function drawShip(x, y) {
-  cx.save();
-  cx.shadowColor='#7F77DD'; cx.shadowBlur=10;
-  cx.fillStyle='#AFA9EC';
-  cx.beginPath();
-  cx.moveTo(x,y-13); cx.lineTo(x-14,y+13);
-  cx.lineTo(x-5,y+7); cx.lineTo(x,y+12);
-  cx.lineTo(x+5,y+7); cx.lineTo(x+14,y+13);
-  cx.closePath(); cx.fill();
-  cx.fillStyle='#534AB7';
-  cx.beginPath();
-  cx.ellipse(x,y,5,7,0,0,Math.PI*2);
-  cx.fill();
-  cx.restore();
+// ══════════════════════════════════════════
+// AUDIO
+// ══════════════════════════════════════════
+let ac=null;
+let musicTimer=null, musicStep=0, currentMusic=null;
+function getAC(){ if(!ac) ac=new(window.AudioContext||window.webkitAudioContext)(); return ac; }
+function tone(freq,type,dur,vol=0.12,delay=0){
+  const a=getAC(), osc=a.createOscillator(), g=a.createGain(), now=a.currentTime;
+  osc.connect(g); g.connect(a.destination);
+  osc.type=type; osc.frequency.value=freq;
+  g.gain.setValueAtTime(0,now+delay);
+  g.gain.linearRampToValueAtTime(vol,now+delay+0.01);
+  g.gain.exponentialRampToValueAtTime(0.001,now+delay+dur);
+  osc.start(now+delay); osc.stop(now+delay+dur+0.05);
+}
+const PATTERNS={
+  w:{bpm:180,steps:[{f:523,t:'square',v:0.1},{f:659,t:'square',v:0.09},{f:784,t:'square',v:0.1},{f:1047,t:'square',v:0.09},{f:784,t:'square',v:0.08},{f:659,t:'square',v:0.09}],bass:[262,262,196,196,220,220]},
+  a:{bpm:155,steps:[{f:110,t:'sawtooth',v:0.16},{f:110,t:'sawtooth',v:0.09},{f:147,t:'sawtooth',v:0.16},{f:110,t:'sawtooth',v:0.09},{f:98,t:'sawtooth',v:0.18},{f:110,t:'sawtooth',v:0.1}],bass:[55,55,55,73,55,55]},
+  s:{bpm:70,steps:[{f:392,t:'sine',v:0.09},{f:349,t:'sine',v:0.07},{f:330,t:'sine',v:0.09},{f:294,t:'sine',v:0.07},{f:330,t:'sine',v:0.07},{f:349,t:'sine',v:0.07}],bass:[98,98,110,98,110,110]},
+  d:{bpm:88,steps:[{f:528,t:'sine',v:0.07},{f:594,t:'sine',v:0.06},{f:660,t:'sine',v:0.07},{f:594,t:'sine',v:0.06},{f:528,t:'sine',v:0.06},{f:462,t:'sine',v:0.06}],bass:[132,132,165,132,110,132]}
+};
+function startMusic(k){
+  if(currentMusic===k) return;
+  stopMusic(); currentMusic=k; musicStep=0;
+  const p=PATTERNS[k], ms=(60/p.bpm)*1000;
+  musicTimer=setInterval(()=>{
+    const s=p.steps[musicStep%p.steps.length], b=p.bass[musicStep%p.bass.length];
+    tone(s.f,s.t,ms/900,s.v);
+    tone(b,'triangle',ms/700,0.05);
+    if(musicStep%2===0) tone(8000,'square',0.03,0.015);
+    musicStep++;
+  },ms);
+}
+function stopMusic(){ if(musicTimer){clearInterval(musicTimer);musicTimer=null;} currentMusic=null; }
+function sfx(t){
+  if(t==='catch'){tone(523,'sine',0.07,0.4);tone(659,'sine',0.07,0.35,0.07);tone(784,'sine',0.1,0.35,0.14);}
+  else if(t==='miss'){tone(200,'sawtooth',0.16,0.3);tone(140,'sawtooth',0.16,0.25,0.1);}
+  else if(t==='levelup'){[523,659,784,1047,1319].forEach((f,i)=>tone(f,'sine',0.16,0.4,i*0.09));}
+  else if(t==='combo'){tone(1047,'sine',0.1,0.5);tone(1319,'sine',0.09,0.45,0.06);}
 }
 
-function drawRock(r) {
-  cx.save();
-  cx.fillStyle=r.col; cx.shadowColor=r.col; cx.shadowBlur=6;
-  cx.beginPath();
-  for(let i=0;i<r.n;i++){
-    const a=(i/r.n)*Math.PI*2;
-    const rad=r.r*(0.7+0.3*Math.sin(i*2.5+r.seed));
-    const bx=r.x+Math.cos(a)*rad, by=r.y+Math.sin(a)*rad;
-    i===0?cx.moveTo(bx,by):cx.lineTo(bx,by);
+// ══════════════════════════════════════════
+// YOUTUBE BACKGROUND
+// ══════════════════════════════════════════
+let currentYtEmo = null;
+function setYtBg(emoKey) {
+  if(currentYtEmo===emoKey) return;
+  currentYtEmo=emoKey;
+  const id=EMO[emoKey].ytId;
+  document.getElementById('yt-bg-iframe').src=
+    `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&disablekb=1&modestbranding=1`;
+}
+function setBgColor(emoKey){
+  document.getElementById('bg-color').style.background=EMO[emoKey].bgColor;
+}
+
+// ══════════════════════════════════════════
+// GAME
+// ══════════════════════════════════════════
+const gc=document.getElementById('gc');
+const cx=gc.getContext('2d');
+gc.width=window.innerWidth; gc.height=window.innerHeight;
+const W=gc.width, H=gc.height;
+
+let score=0,lives=3,combo=0,level=1;
+let running=false,frame=0,diff=1;
+let levelScore=0,levelTarget=10;
+let items=[],parts=[],activeKeys={};
+let promptEmo='w',nextPrompt=0;
+let playerName='Player';
+
+// Micro:Bit tilt state
+let tiltX=0, btConnected=false;
+// Tilt-controlled selector (which emo key is "active" from tilt)
+let tiltEmo=null;
+
+const stars=Array.from({length:55},()=>({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.6+0.3,b:Math.random()*10}));
+
+function setBgEmo(k){
+  setYtBg(k);
+  setBgColor(k);
+  document.getElementById('bg-color').style.background=EMO[k].bgColor;
+}
+
+function newPrompt(){
+  promptEmo=KEYS[Math.floor(Math.random()*4)];
+  const e=EMO[promptEmo];
+  document.getElementById('prompt-emoji').textContent=e.emoji;
+  document.getElementById('prompt-text').textContent=`Express: ${e.name} ${e.zh}`;
+  document.getElementById('prompt-sub').textContent=btConnected?`Tilt Micro:Bit + step ${e.name}!`:`Step on ${e.name.toUpperCase()} key!`;
+  nextPrompt=frame+100+Math.floor(Math.random()*80);
+}
+
+function setLives(){ const h=['','❤️','❤️❤️','❤️❤️❤️']; document.getElementById('lives').textContent=h[Math.max(0,lives)]; }
+function setProgress(){ const bar=document.getElementById('progress-bar'); bar.style.width=((levelScore/levelTarget)*100)+'%'; bar.style.background=EMO[promptEmo].color; }
+
+function burst(x,y,col,n=14){
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2,sp=3+Math.random()*6;
+    parts.push({x,y,col,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:1,decay:0.03+Math.random()*0.03,r:4+Math.random()*8});
   }
-  cx.closePath(); cx.fill(); cx.restore();
 }
 
-function spawnRock() {
-  const cols=['#F09595','#EF9F27','#5DCAA5','#85B7EB','#ED93B1'];
-  rocks.push({
-    x:35+Math.random()*(W-70), y:-25,
-    r:12+Math.random()*18,
-    speed:(1.2+Math.random()*1.8)*diff,
-    n:6+Math.floor(Math.random()*4),
-    seed:Math.random()*10,
-    col:cols[Math.floor(Math.random()*cols.length)]
-  });
+function spawnItem(){
+  const k=KEYS[Math.floor(Math.random()*4)];
+  items.push({x:55+Math.random()*(W-110),y:-45,emo:k,speed:2+level*0.35+Math.random()*1.2,size:52+Math.random()*14,wobble:Math.random()*Math.PI*2,done:false,caught:false,alpha:1});
 }
 
-function hits(r){ return Math.abs(r.x-px)<r.r*0.65+12 && Math.abs(r.y-py)<r.r*0.65+11; }
-
-function txt(t,x,y,size,col){
-  cx.fillStyle=col; cx.font=size+'px sans-serif'; cx.textAlign='center';
-  cx.fillText(t,x,y); cx.textAlign='left';
-}
-
-function drawStart(){
-  cx.fillStyle='rgba(83,74,183,0.18)';
-  cx.beginPath(); cx.roundRect(W/2-155,H/2-75,310,160,10); cx.fill();
-  cx.strokeStyle='#534AB7'; cx.lineWidth=1;
-  cx.beginPath(); cx.roundRect(W/2-155,H/2-75,310,160,10); cx.stroke();
-  txt('Dodge the Rocks!',W/2,H/2-28,22,'#AFA9EC');
-  txt('A+B on Micro:Bit to start',W/2,H/2+2,13,'#7F77DD');
-  txt('or press Space / click',W/2,H/2+22,13,'#7F77DD');
-  txt(connected?'Micro:Bit connected!':'Micro:Bit not connected',W/2,H/2+54,13,connected?'#5DCAA5':'#EF9F27');
-}
-
-function drawOver(){
-  cx.clearRect(0,0,W,H);
-  cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
-  drawStars(); rocks.forEach(drawRock);
-  cx.fillStyle='rgba(10,10,26,0.75)'; cx.fillRect(0,0,W,H);
-  txt('Game Over',W/2,H/2-40,28,'#F09595');
-  txt('Score: '+score,W/2,H/2,18,'#AFA9EC');
-  txt('Best: '+best,W/2,H/2+30,14,'#5DCAA5');
-  txt('A+B or Space to restart',W/2,H/2+62,13,'#7F77DD');
-}
-
-function restart(){
-  px=W/2; rocks=[]; score=0; frame=0; diff=1;
-  gameOver=false; started=true;
-  document.getElementById('sc').textContent=0;
-  requestAnimationFrame(loop);
+// Determine which emo is active (keyboard OR tilt)
+function getActiveEmo(){
+  // Keyboard
+  for(const k of KEYS){ if(activeKeys[k]) return k; }
+  // Tilt from Micro:Bit
+  if(btConnected && tiltEmo) return tiltEmo;
+  return null;
 }
 
 function loop(){
-  if(gameOver){drawOver();return;}
+  if(!running) return;
   frame++;
   cx.clearRect(0,0,W,H);
-  cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
-  drawStars();
-  if(!started){drawShip(px,py);drawStart();requestAnimationFrame(loop);return;}
-  diff=1+score*0.002;
-  if(frame%Math.max(18,80-Math.floor(score/8))===0) spawnRock();
-  if(moveL) px=Math.max(18,px-SPEED);
-  if(moveR) px=Math.min(W-18,px+SPEED);
-  rocks.forEach(r=>r.y+=r.speed);
-  rocks=rocks.filter(r=>r.y<H+40);
-  for(let r of rocks){
-    if(hits(r)){
-      if(score>best){best=score;document.getElementById('best').textContent=best;}
-      gameOver=true; return;
+
+  // Stars
+  stars.forEach(s=>{
+    const a=0.2+0.35*Math.abs(Math.sin(frame*0.007+s.b));
+    cx.fillStyle=`rgba(200,200,255,${a})`; cx.fillRect(s.x,s.y,s.s,s.s);
+  });
+
+  // Spawn
+  if(frame%Math.max(28,82-level*7)===0) spawnItem();
+  if(frame>=nextPrompt) newPrompt();
+
+  // Tilt: map tiltX (-1024 to 1024) to emo key
+  if(btConnected){
+    // Dead zone in center
+    if(Math.abs(tiltX)<120) tiltEmo=null;
+    else if(tiltX>500) tiltEmo='a'; // far right = angry
+    else if(tiltX>120) tiltEmo='w'; // right = happy
+    else if(tiltX<-500) tiltEmo='d'; // far left = calm
+    else tiltEmo='s'; // left = sad
+
+    // Update tilt bar
+    const pct=Math.min(Math.max((tiltX+1024)/2048,0),1);
+    document.getElementById('tilt-indicator').style.left=(pct*290+5)+'px';
+
+    // Update emo key highlights for tilt
+    KEYS.forEach(k=>{
+      const el=document.getElementById(`key-${k}`);
+      if(tiltEmo===k) el.classList.add('active');
+      else if(!activeKeys[k]) el.classList.remove('active');
+    });
+  }
+
+  // Catch zone
+  const cz=H-165;
+  cx.strokeStyle='rgba(255,255,255,0.1)'; cx.lineWidth=1.5; cx.setLineDash([10,8]);
+  cx.beginPath(); cx.moveTo(0,cz); cx.lineTo(W,cz); cx.stroke(); cx.setLineDash([]);
+  cx.fillStyle='rgba(255,255,255,0.04)'; cx.fillRect(0,cz,W,H-cz);
+  cx.fillStyle='rgba(255,255,255,0.2)'; cx.font='11px sans-serif'; cx.textAlign='left';
+  cx.fillText('▼ CATCH ZONE',12,cz-6);
+
+  const activeEmo=getActiveEmo();
+  // Change bg when stepping
+  if(activeEmo){ setBgEmo(activeEmo); startMusic(activeEmo); }
+  else stopMusic();
+
+  // Items
+  for(let it of items){
+    if(it.done){ it.alpha-=0.07; it.y+=it.caught?-4:2; continue; }
+    it.y+=it.speed; it.wobble+=0.04; it.x+=Math.sin(it.wobble)*0.7;
+
+    if(it.emo===promptEmo && activeEmo===promptEmo && it.y>cz && it.y<H-45){
+      it.done=true; it.caught=true;
+      score+=10*(1+Math.floor(combo/3)); combo++; levelScore++;
+      sfx(combo%5===0?'combo':'catch');
+      burst(it.x,it.y,EMO[it.emo].particle,16);
+      document.getElementById('sc').textContent=score;
+      if(combo%5===0){document.getElementById('combo').textContent=`🔥 ${combo}x COMBO!`;setTimeout(()=>document.getElementById('combo').textContent='',1400);}
+      setProgress();
+      if(levelScore>=levelTarget){showLevelUp();return;}
+      continue;
+    }
+    if(it.y>H+30){
+      if(it.emo===promptEmo){combo=0;lives--;sfx('miss');document.getElementById('combo').textContent='';setLives();if(lives<=0){endGame();return;}}
+      it.done=true; continue;
+    }
+    if(it.alpha>0){
+      cx.save(); cx.globalAlpha=it.alpha;
+      if(it.emo===promptEmo){cx.shadowColor=EMO[it.emo].particle;cx.shadowBlur=24;}
+      cx.font=`${it.size}px serif`; cx.textAlign='center';
+      cx.fillText(EMO[it.emo].emoji,it.x,it.y);
+      cx.restore();
     }
   }
-  rocks.forEach(drawRock);
-  drawShip(px,py);
-  cx.fillStyle='rgba(175,169,236,0.85)'; cx.font='13px sans-serif';
-  cx.fillText('Score: '+score,12,22);
-  if(connected){
-    cx.fillStyle='#5DCAA5';
-    cx.fillText(moveL?'A':'',12,40);
-    cx.fillText(moveR?'B':'',W-20,40);
+  items=items.filter(i=>i.alpha>0&&i.y<H+60);
+
+  // Particles
+  for(let p of parts){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=p.decay;
+    if(p.life<=0) continue;
+    cx.save();cx.globalAlpha=p.life;cx.fillStyle=p.col;
+    cx.beginPath();cx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);cx.fill();cx.restore();
   }
-  score++;
-  document.getElementById('sc').textContent=score;
+  parts=parts.filter(p=>p.life>0);
+
   requestAnimationFrame(loop);
 }
 
+// ══════════════════════════════════════════
+// KEYBOARD
+// ══════════════════════════════════════════
 document.addEventListener('keydown',e=>{
-  if(e.key==='ArrowLeft') moveL=true;
-  if(e.key==='ArrowRight') moveR=true;
-  if(e.key===' '){if(!started)started=true;else if(gameOver)restart();}
+  const k=e.key.toLowerCase();
+  if(!KEYS.includes(k)||!running||activeKeys[k]) return;
+  activeKeys[k]=true;
+  document.getElementById(`key-${k}`).classList.add('active');
 });
 document.addEventListener('keyup',e=>{
-  if(e.key==='ArrowLeft') moveL=false;
-  if(e.key==='ArrowRight') moveR=false;
+  const k=e.key.toLowerCase();
+  if(!KEYS.includes(k)) return;
+  activeKeys[k]=false;
+  document.getElementById(`key-${k}`).classList.remove('active');
 });
-cv.addEventListener('click',()=>{if(!started)started=true;else if(gameOver)restart();});
 
-// Bluetooth Button Service
+// ══════════════════════════════════════════
+// BLUETOOTH — Accelerometer Service
+// ══════════════════════════════════════════
+const ACCEL_SVC  = 'e95d9205-251d-470a-a062-fa1922dfa9a8';
+const ACCEL_DATA = 'e95dca4b-251d-470a-a062-fa1922dfa9a8';
+
 async function connectBT(){
   if(!navigator.bluetooth){alert('Use Chrome on desktop or Android!');return;}
-  const btn=document.querySelector('button');
-  const sta=document.getElementById('status');
+  const sta=document.getElementById('bt-status');
   try{
-    btn.textContent='Connecting...';
-    setLog('Searching for Micro:Bit...','#EF9F27');
-
+    sta.textContent='🔵 Connecting...';
     const device=await navigator.bluetooth.requestDevice({
       filters:[{namePrefix:'BBC micro:bit'}],
-      optionalServices:[BTN_SVC]
+      optionalServices:[ACCEL_SVC]
     });
-
-    setLog('Found device, connecting...','#EF9F27');
     const server=await device.gatt.connect();
-
-    setLog('Getting button service...','#EF9F27');
-    const svc=await server.getPrimaryService(BTN_SVC);
-
-    setLog('Getting button A...','#EF9F27');
-    const charA=await svc.getCharacteristic(BTN_A);
-    await charA.startNotifications();
-    charA.addEventListener('characteristicvaluechanged',e=>{
-      const val=e.target.value.getUint8(0);
-      setLog('Button A: '+val+' (1=pressed, 0=released)');
-      if(val===1){
-        moveL=true;
-        if(!started) started=true;
-        else if(gameOver) restart();
-      } else {
-        moveL=false;
-      }
+    const svc=await server.getPrimaryService(ACCEL_SVC);
+    const char=await svc.getCharacteristic(ACCEL_DATA);
+    await char.startNotifications();
+    char.addEventListener('characteristicvaluechanged',e=>{
+      // Accelerometer data: X,Y,Z each 2 bytes signed int16 little-endian
+      const dv=e.target.value;
+      tiltX=dv.getInt16(0,true); // X axis
     });
-
-    setLog('Getting button B...','#EF9F27');
-    const charB=await svc.getCharacteristic(BTN_B);
-    await charB.startNotifications();
-    charB.addEventListener('characteristicvaluechanged',e=>{
-      const val=e.target.value.getUint8(0);
-      setLog('Button B: '+val+' (1=pressed, 0=released)');
-      if(val===1){
-        moveR=true;
-        if(!started && moveL) restart();
-      } else {
-        moveR=false;
-      }
-    });
-
-    connected=true;
-    sta.textContent='Connected!';
-    sta.style.cssText='background:#085041;color:#9FE1CB;border:1px solid #0F6E56;font-size:13px;padding:3px 12px;border-radius:99px;';
-    btn.textContent='Disconnect';
-    btn.onclick=()=>device.gatt.disconnect();
-    setLog('Ready! Press A=left, B=right, A+B=start','#5DCAA5');
-
+    btConnected=true;
+    sta.textContent='✅ Micro:Bit';
+    sta.style.borderColor='#6BCB77'; sta.style.color='#6BCB77';
+    document.getElementById('tilt-bar').style.display='block';
     device.addEventListener('gattserverdisconnected',()=>{
-      connected=false; moveL=false; moveR=false;
-      sta.textContent='Disconnected';
-      sta.style.cssText='background:#1a1a2e;color:#7F77DD;border:1px solid #534AB7;font-size:13px;padding:3px 12px;border-radius:99px;';
-      btn.textContent='Connect Micro:Bit';
-      btn.onclick=connectBT;
-      setLog('Micro:Bit disconnected.','#F09595');
+      btConnected=false; tiltX=0; tiltEmo=null;
+      sta.textContent='🎮 Connect Micro:Bit';
+      sta.style.borderColor='#534AB7'; sta.style.color='#7F77DD';
+      document.getElementById('tilt-bar').style.display='none';
     });
-
   }catch(err){
-    setLog('Error: '+err.message,'#F09595');
-    sta.textContent='Failed';
-    btn.textContent='Connect Micro:Bit';
-    btn.onclick=connectBT;
+    sta.textContent='❌ Failed — tap to retry';
   }
 }
 
-requestAnimationFrame(loop);
+// ══════════════════════════════════════════
+// LEVEL UP
+// ══════════════════════════════════════════
+async function showLevelUp(){
+  running=false; stopMusic(); sfx('levelup');
+  const lo=document.getElementById('level-overlay');
+  const titles=['😄 Happy Level Clear!','😡 Angry Level Clear!','😢 Sad Level Clear!','😌 Calm Level Clear!'];
+  document.getElementById('level-title').textContent=titles[(level-1)%4]+' 🎉';
+  // Level complete video
+  const vid=LEVEL_VIDEOS[(level-1)%LEVEL_VIDEOS.length];
+  document.getElementById('level-yt-iframe').src=`https://www.youtube.com/embed/${vid}?autoplay=1&controls=1`;
+  // Stop background video
+  document.getElementById('yt-bg-iframe').src='';
+  document.getElementById('ai-story').textContent='✨ Loading AI message...';
+  lo.style.display='flex';
+  try{
+    const themes=['happiness and joyful expression','channeling anger into powerful energy','feeling and expressing sadness safely','finding calm and inner peace'];
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:100,messages:[{role:'user',content:`You're an enthusiastic coach for Taiwan junior high students at a STEAM hackathon. The student's name is "${playerName}". They just completed level ${level} of an emotion dance DDR game about "${themes[(level-1)%4]}". Write 2 fun encouraging sentences addressing them by name. Use 1-2 emojis. Max 60 words.`}]})});
+    const d=await r.json();
+    document.getElementById('ai-story').textContent=d.content[0].text;
+  }catch(e){
+    const fb=[`Amazing ${playerName}! Your happy energy lit up the whole room! 🌟`,`Incredible power ${playerName}! 💪 You turned anger into unstoppable dance moves!`,`Beautiful ${playerName}! 💙 You danced through sadness with such grace!`,`So peaceful ${playerName}! 🌿 Your calm focus is a true superpower!`];
+    document.getElementById('ai-story').textContent=fb[(level-1)%4];
+  }
+}
+
+function continueGame(){
+  document.getElementById('level-yt-iframe').src='';
+  document.getElementById('level-overlay').style.display='none';
+  level++; levelScore=0; levelTarget=10+level*3; diff=1+level*0.15;
+  document.getElementById('lv').textContent=level;
+  // Resume bg video
+  setYtBg(promptEmo);
+  running=true; newPrompt(); setProgress();
+  requestAnimationFrame(loop);
+}
+
+// ══════════════════════════════════════════
+// GAME OVER / RESET
+// ══════════════════════════════════════════
+function endGame(){
+  running=false; stopMusic();
+  saveScore(playerName, score, level);
+  document.getElementById('final-score-display').textContent=score;
+  document.getElementById('final-msg').textContent=`${playerName} reached Level ${level}! Every emotion makes you a better dancer! 💃🕺`;
+  renderScores('scores-body2');
+  document.getElementById('yt-bg-iframe').src='';
+  document.getElementById('gameover-overlay').style.display='flex';
+}
+
+function resetGame(){
+  document.getElementById('gameover-overlay').style.display='none';
+  renderScores('scores-body');
+  document.getElementById('name-overlay').style.display='flex';
+}
+
+// ══════════════════════════════════════════
+// START
+// ══════════════════════════════════════════
+function tryStart(){
+  const n=document.getElementById('name-input').value.trim();
+  if(!n){document.getElementById('name-input').style.borderColor='#FF4444';document.getElementById('name-input').placeholder='Please enter a name! 請輸入名字';return;}
+  playerName=n;
+  document.getElementById('player-name-display').textContent=n+' |';
+  getAC();
+  document.getElementById('name-overlay').style.display='none';
+  score=0;lives=3;combo=0;level=1;frame=0;levelScore=0;levelTarget=10;diff=1;
+  items=[];parts=[];activeKeys={};
+  document.getElementById('sc').textContent=0;
+  document.getElementById('lv').textContent=1;
+  document.getElementById('combo').textContent='';
+  setLives(); newPrompt(); setProgress();
+  setBgEmo('w');
+  running=true;
+  requestAnimationFrame(loop);
+}
+
+// Enter key to start
+document.getElementById('name-input').addEventListener('keydown',e=>{if(e.key==='Enter')tryStart();});
+
+// Init scores display
+renderScores('scores-body');
+
+window.connectBT=connectBT;
+window.continueGame=continueGame;
+window.resetGame=resetGame;
+window.tryStart=tryStart;
 </script>
 </body>
 </html>
