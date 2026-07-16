@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -55,7 +54,22 @@ canvas{position:fixed;inset:0;z-index:2;pointer-events:none;}
 #cnt-btn{padding:9px 26px;font-size:14px;background:#534AB7;border:none;border-radius:50px;color:#fff;cursor:pointer;pointer-events:all;margin-top:5px;}
 /* Sound unlock button */
 #sound-btn{position:fixed;bottom:12px;right:14px;z-index:5;font-size:11px;padding:4px 11px;border-radius:99px;background:rgba(83,74,183,0.8);color:#fff;border:1px solid #534AB7;cursor:pointer;pointer-events:all;display:none;}
+
+/* Multiplayer indicators & status bar UI elements */
+#multi-status{margin-top:6px;font-size:11px;color:#6BCB77;min-height:15px;font-weight:bold;}
+.opp-avatar{position:absolute;bottom:10px;text-align:center;pointer-events:none;animation:bob 1.5s ease-in-out infinite;transition:left 0.4s ease-out;display:flex;flex-direction:column;align-items:center;}
+.opp-tag{background:rgba(83,74,183,0.85);color:#fff;font-size:10px;font-weight:bold;padding:2px 6px;border-radius:6px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.5);}
+.opp-emoji{font-size:36px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 </style>
+
+<!-- ========================================== -->
+<!-- REAL-TIME DATABASE DEPENDENCIES            -->
+<!-- ========================================== -->
+<!-- Loads the v8/9 Compatible Realtime Firebase libraries safely via CDN -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
 </head>
 <body>
 <div id="yt-bg"><iframe id="yt-iframe" allow="autoplay" allowfullscreen></iframe></div>
@@ -96,6 +110,7 @@ canvas{position:fixed;inset:0;z-index:2;pointer-events:none;}
   </div>
   <p style="font-size:12px;color:#AFA9EC;margin-bottom:3px">Enter your name for the leaderboard 輸入名字</p>
   <input id="name-in" type="text" maxlength="16" placeholder="Your name 你的名字..." />
+  <div id="multi-status">Initializing real-time server...</div>
   <button class="bb" onclick="tryStart()">Start Dancing! 開始 🎵</button>
   <div style="margin-top:16px;width:100%;max-width:380px">
     <p style="font-size:12px;color:#AFA9EC;margin-bottom:5px">🏆 High Scores</p>
@@ -123,7 +138,45 @@ canvas{position:fixed;inset:0;z-index:2;pointer-events:none;}
   <button id="cnt-btn" onclick="continueGame()">Continue! 繼續 →</button>
 </div>
 
+<!-- Multiplayer avatar elements will append dynamically here -->
+<div id="opponents-lobby" style="position:fixed;inset:0;z-index:1;pointer-events:none;"></div>
+
 <script>
+// ═══════ CLOUD & DATABASE CONFIGURATION ═══════
+// Paste your Firebase Config keys here:
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+
+// Paste your ThingSpeak Write Key here:
+const THINGSPEAK_WRITE_KEY = "YOUR_THINGSPEAK_WRITE_KEY_HERE";
+
+let database = null;
+let myPlayerId = "player_" + Math.floor(Math.random() * 100000);
+let multiConnected = false;
+
+// Safe Firebase Initialization check
+try {
+  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+    database = firebase.database();
+    multiConnected = true;
+    document.getElementById('multi-status').textContent = '⚡ Connected to Multiplayer Database!';
+  } else {
+    document.getElementById('multi-status').textContent = '⚠️ Sandbox Mode (Setup Firebase Config to unlock live battle!)';
+    document.getElementById('multi-status').style.color = '#FFA500';
+  }
+} catch(e) {
+  console.error("Firebase init failed: ", e);
+  document.getElementById('multi-status').textContent = '❌ Multiplayer Connection Failed.';
+}
+
 // ═══════ CONFIG ═══════
 const EMO={
   w:{name:'Happy',zh:'開心',emoji:'😄',col:'#FFD93D',par:'#FFD93D',tint:'rgba(255,180,50,0.12)',yt:'3OY0MRbK9X8'},
@@ -136,11 +189,33 @@ const LV_YT=['3OY0MRbK9X8','aHzBDM2p8j0','-jz1JHGkDJk','8FsIiKFNzcE'];
 
 // ═══════ HIGH SCORES ═══════
 function getScores(){try{return JSON.parse(localStorage.getItem('emoDance2')||'[]');}catch{return[];}}
-function saveScore(n,s,l){const a=getScores();a.push({n,s,l});a.sort((x,y)=>y.s-x.s);a.splice(10);localStorage.setItem('emoDance2',JSON.stringify(a));}
+function saveScore(n,s,l){
+  const a=getScores();
+  a.push({n,s,l});
+  a.sort((x,y)=>y.s-x.s);
+  a.splice(10);
+  localStorage.setItem('emoDance2',JSON.stringify(a));
+  
+  // Also push local end-of-game statistics up to ThingSpeak cloud analytics
+  if (THINGSPEAK_WRITE_KEY !== "YOUR_THINGSPEAK_WRITE_KEY_HERE") {
+    sendToThingSpeak(n, s, l);
+  }
+}
 function renderScores(id){
   const a=getScores(),tb=document.getElementById(id);
   const medals=['🥇','🥈','🥉'];
   tb.innerHTML=a.length?a.map((r,i)=>`<tr><td>${medals[i]||i+1}</td><td>${r.n}</td><td style="color:${i<3?['#FFD700','#C0C0C0','#CD7F32'][i]:'#fff'};font-weight:${i<3?700:400}">${r.s}</td><td style="opacity:.7">Lv${r.l}</td></tr>`).join(''):'<tr><td colspan="4" style="opacity:.5;padding:8px">No scores yet! Be first! 🎯</td></tr>';
+}
+
+// ═══════ THINGSPEAK CLOUD SENDER ═══════
+function sendToThingSpeak(n, s, l) {
+  const url = `https://api.thingspeak.com/update?api_key=${THINGSPEAK_WRITE_KEY}&field1=${s}&field2=${l}&status=${encodeURIComponent(n + " completed their dance session!")}`;
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      if (data > 0) console.log("Analytics sent successfully! Data Entry ID:", data);
+    })
+    .catch(err => console.warn("ThingSpeak submission skipped or throttled:", err));
 }
 
 // ═══════ AUDIO ═══════
@@ -148,13 +223,11 @@ let ac=null,mTimer=null,mStep=0,curMusic=null,soundReady=false;
 function getAC(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();return ac;}
 function unlockSound(){
   const a=getAC();
-  // Play silent buffer to unlock
   const buf=a.createBuffer(1,1,22050);
   const src=a.createBufferSource();
   src.buffer=buf; src.connect(a.destination); src.start(0);
   soundReady=true;
   document.getElementById('sound-btn').style.display='none';
-  // Start music if already playing emotion
   if(curMusic) startMusic(curMusic);
 }
 function tone(f,t,d,v=0.12,delay=0){
@@ -240,16 +313,25 @@ function getActiveEmo(){
   return null;
 }
 
+// ═══════ REAL-TIME DATABASE WRITER ═══════
+function writeLocalStateToCloud(pressedKey) {
+  if (!multiConnected) return;
+  database.ref('players/' + myPlayerId).set({
+    name: playerName,
+    activeKey: pressedKey || "none",
+    score: score,
+    level: level,
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  });
+}
+
 function loop(){
   if(!running)return;
   frame++;
   cx.clearRect(0,0,W,H);
-  // Stars
   stars.forEach(s=>{const a=0.18+0.32*Math.abs(Math.sin(frame*0.007+s.b));cx.fillStyle=`rgba(200,200,255,${a})`;cx.fillRect(s.x,s.y,s.s,s.s);});
-  // Spawn
   if(frame%Math.max(26,80-level*7)===0)spawnItem();
   if(frame>=nextPrompt)newPrompt();
-  // Tilt processing
   if(btConnected){
     if(Math.abs(tiltX)<150)tiltEmo=null;
     else if(tiltX>550)tiltEmo='a';
@@ -261,7 +343,6 @@ function loop(){
     KS.forEach(k=>{const el=document.getElementById(`ek-${k}`);if(tiltEmo===k)el.classList.add('active');else if(!activeKeys[k])el.classList.remove('active');});
   }
   const cz=H-162;
-  // Catch zone
   cx.strokeStyle='rgba(255,255,255,0.09)';cx.lineWidth=1.5;cx.setLineDash([9,7]);
   cx.beginPath();cx.moveTo(0,cz);cx.lineTo(W,cz);cx.stroke();cx.setLineDash([]);
   cx.fillStyle='rgba(255,255,255,0.03)';cx.fillRect(0,cz,W,H-cz);
@@ -269,7 +350,6 @@ function loop(){
   cx.fillText('▼ CATCH ZONE — step here!',12,cz-5);
   const ae=getActiveEmo();
   if(ae){setYtBg(ae);startMusic(ae);}else stopMusic();
-  // Items
   for(let it of items){
     if(it.done){it.alpha-=0.07;it.y+=it.caught?-4:2;continue;}
     it.y+=it.spd;it.wb+=0.04;it.x+=Math.sin(it.wb)*0.65;
@@ -279,6 +359,10 @@ function loop(){
       sfx(combo%5===0?'combo':'catch');
       burst(it.x,it.y,EMO[it.emo].par,16);
       document.getElementById('sc').textContent=score;
+      
+      // Update multiplayer score dynamically during changes
+      writeLocalStateToCloud(ae);
+
       if(combo%5===0){document.getElementById('combo').textContent=`🔥 ${combo}x COMBO!`;setTimeout(()=>document.getElementById('combo').textContent='',1400);}
       setProgress();
       if(levelScore>=levelTarget){showLevelUp();return;}
@@ -297,7 +381,6 @@ function loop(){
     }
   }
   items=items.filter(i=>i.alpha>0&&i.y<H+58);
-  // Particles
   for(let p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.16;p.life-=p.dec;if(p.life<=0)continue;cx.save();cx.globalAlpha=p.life;cx.fillStyle=p.c;cx.beginPath();cx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);cx.fill();cx.restore();}
   parts=parts.filter(p=>p.life>0);
   requestAnimationFrame(loop);
@@ -307,19 +390,18 @@ function loop(){
 document.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if(!KS.includes(k)||!running||activeKeys[k])return;
-  // First keypress unlocks sound automatically
   if(!soundReady){soundReady=true;document.getElementById('sound-btn').style.display='none';if(ac)ac.resume();}
   activeKeys[k]=true;document.getElementById(`ek-${k}`).classList.add('active');
+  writeLocalStateToCloud(k);
 });
 document.addEventListener('keyup',e=>{
   const k=e.key.toLowerCase();
   if(!KS.includes(k))return;
   activeKeys[k]=false;document.getElementById(`ek-${k}`).classList.remove('active');
+  writeLocalStateToCloud(null);
 });
 
-// ═══════ BLUETOOTH — CORRECT UUIDs ═══════
-// Accelerometer Service: e95d0753-251d-470a-a062-fa1922dfa9a8
-// Accelerometer Data:    e95dca4b-251d-470a-a062-fa1922dfa9a8
+// ═══════ BLUETOOTH ═══════
 const ACCEL_SVC  = 'e95d0753-251d-470a-a062-fa1922dfa9a8';
 const ACCEL_CHAR = 'e95dca4b-251d-470a-a062-fa1922dfa9a8';
 
@@ -337,7 +419,6 @@ async function connectBT(){
     const char=await svc.getCharacteristic(ACCEL_CHAR);
     await char.startNotifications();
     char.addEventListener('characteristicvaluechanged',e=>{
-      // X,Y,Z — each signed int16 little-endian
       tiltX=e.target.value.getInt16(0,true);
     });
     btConnected=true;
@@ -348,12 +429,52 @@ async function connectBT(){
       btConnected=false;tiltX=0;tiltEmo=null;
       btn.textContent='🎮 Connect Micro:Bit';
       btn.style.color='#7F77DD';btn.style.borderColor='#534AB7';
-      document.getElementById('tilt-wrap').style.display='none';
+      document.getElementById('tilt-wrap').style.none;
     });
   }catch(err){
     btn.textContent='❌ Failed — tap to retry';
     setTimeout(()=>btn.textContent='🎮 Connect Micro:Bit',3000);
   }
+}
+
+// ═══════ MULTIPLAYER SYNCHRONIZATION LOBBY ═══════
+// Handles drawing and synchronizing opponent indicators in real time
+if (multiConnected) {
+  database.ref('players').on('value', (snapshot) => {
+    const list = snapshot.val() || {};
+    const lobby = document.getElementById('opponents-lobby');
+    lobby.innerHTML = ''; // Re-render live positions
+    
+    let index = 0;
+    const now = Date.now();
+    
+    for (let id in list) {
+      if (id === myPlayerId) continue; // Do not draw ourselves
+      
+      const opp = list[id];
+      // Filter out idle players inactive for more than 40 seconds
+      if (now - opp.timestamp > 40000) continue;
+      
+      const visualId = `opp_${id}`;
+      const div = document.createElement('div');
+      div.className = 'opp-avatar';
+      div.id = visualId;
+      
+      // Evenly space active opponents horizontally across the screen view
+      const horizontalSpacing = 15 + (index * 20); 
+      div.style.left = `${horizontalSpacing}%`;
+      
+      const currentActionKey = opp.activeKey && opp.activeKey !== "none" ? opp.activeKey : null;
+      const displayEmoji = currentActionKey ? EMO[currentActionKey].emoji : "🧍";
+      
+      div.innerHTML = `
+        <div class="opp-tag">${opp.name} (Lv${opp.level} / ${opp.score}pts)</div>
+        <div class="opp-emoji">${displayEmoji}</div>
+      `;
+      lobby.appendChild(div);
+      index++;
+    }
+  });
 }
 
 // ═══════ LEVEL UP ═══════
@@ -407,7 +528,6 @@ function tryStart(){
   if(!n){document.getElementById('name-in').style.borderColor='#FF4444';document.getElementById('name-in').placeholder='Please enter a name! 請輸入名字!';return;}
   playerName=n;
   document.getElementById('pname').textContent=n+' |';
-  // Unlock audio context on user gesture
   getAC();soundReady=true;
   document.getElementById('name-ov').style.display='none';
   score=0;lives=3;combo=0;level=1;frame=0;levelScore=0;levelTarget=10;diff=1;
