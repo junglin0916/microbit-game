@@ -2,105 +2,140 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Emotion Dance APICTA Multi-View</title>
+<title>Emotion Dance 情緒舞蹈</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background: #111;font-family: 'Segoe UI', sans-serif; overflow:hidden;user-select:none;}
+#yt-bg{position:fixed; inset:0;z-index:0;pointer-events:none; overflow:hidden;}
+#yt-bg iframe{position:absolute;top:50%;left:50%;width:177.78vh; height:100vh;min-width:100vw;min-height:56.25vw;transform:translate(-50%,-50%);border:none; opacity:0.32;transition:opacity 1s;}
+#bg-tint{position:fixed; inset:0;z-index:1;transition:background 0.8s; pointer-events:none;}
+canvas{position:fixed; inset:0;z-index:2; pointer-events:none;}
+#ui{position:fixed; inset:0;z-index:3; pointer-events:none;}
+#topbar{display: flex; justify-content:space-between; align-items:center; padding:10px 18px;background:rgba(0,0,0,0.4); backdrop-filter:blur(8px);}
+#score-box{color:#fff;font-size:17px;font-weight:700; text-shadow:0 2px 8px #000;}
+#lives{font-size:22px;letter-spacing:2px;}
+#combo{color:#FFD700; font-size:13px;font-weight: 700; min-height:18px;text-align:center;text-shadow:0 2px 8px #000;margin-top:2px;}
+#emotion-bar{display: flex; justify-content:center; gap:8px;padding:5px 14px;}
+.ek{display: flex; flex-direction:column; align-items:center;gap:2px;background:rgba(0,0,0,0.45); border:2px solid rgba(255,255,255,0.18); border-radius:13px;padding:6px 12px;transition:all 0.1s; backdrop-filter:blur(6px);}
+.ek.active{transform: scale(1.2); border-color:#fff;background:rgba(255,255,255,0.22); box-shadow:0 0 22px #fff4;}
+.ek.em{font-size:22px;}.ek.lb{color:#fff;font-size:10px;font-weight:600;}.ek.kk{color:#fff;font-size:9px; opacity:0.55; background:rgba(0,0,0,0.4); border-radius:4px;padding:1px 4px;}
+#prompt-box{position:absolute;top:45%;left:50%; transform: translate(-50%,-50%);text-align:center; pointer-events:none;}
+#prompt-emoji{font-size:90px;display:block; animation:fl 1.8s ease-in-out infinite; filter:drop-shadow(0 4px 24px #000b);}
+#prompt-text{color:#fff;font-size:16px;font-weight:700;margin-top:6px;text-shadow:0 2px 12px #000;}
+#prompt-sub{color:rgba(255,255,255,0.65); font-size:11px;margin-top:3px;}
+@keyframes fl{0%, 100% {transform: translateY(0)}50%{transform:translateY(-13px)}}
+#tilt-wrap{position:fixed; bottom:55px;left:50%; transform: translateX(-50%);z-index:4;display:none; align-items:center; gap:8px;}
+#tilt-bar{width:260px; height: 12px; background:rgba(0,0,0,0.45); border-radius:99px;border:1px solid rgba(255,255,255,0.18); overflow:hidden;position:relative;}
+#tilt-dot{position:absolute;top:2px;width:8px; height:8px; background:#fff;border-radius:50%;left:50%; transform: translateX(-50%); transition:left 0.04s; box-shadow:0 0 6px #fff;}
+#tilt-label{color:rgba(255,255,255,0.6); font-size: 10px; white-space:nowrap;}
+#bt-btn{position:fixed;top:56px;right:14px;z-index:5; font-size:11px;padding:4px 11px;border-radius:99px;background:rgba(0,0,0,0.55); color:#7F77DD;border:1px solid #534AB7; backdrop-filter:blur(4px); cursor:pointer; pointer-events:all;}
+#progress-bar{position:fixed;bottom:0;left:0;height:5px;z-index:4;transition:width 0.28s, background 0.5s;}
+/* OVERLAYS */
+.ov{position:fixed; inset:0;z-index:20;display: flex; flex-direction:column;align-items:center; justify-content:center; background:rgba(0,0,0,0.9); backdrop-filter:blur(12px);color:#fff;text-align:center;padding:24px;}
+.ov h1{font-size:30px;margin-bottom:6px;}
+.ov p{font-size:13px;opacity:0.78; margin-bottom:14px;max-width:440px;line-height:1.7;}
+.bb{padding:12px 30px;font-size:16px;font-weight:700; background: linear-gradient(135deg, #FF6B6B,#FFD93D,#6BCB77,#4D96FF); border:none;border-radius:50px;cursor:pointer; pointer-events:all;color:#fff;text-shadow:0 1px 4px #0005;box-shadow:0 4px 22px #0004; transition:transform 0.1s;margin-top:8px;}
+.bb:hover{transform:scale(1.05);}
+.km{display:flex; gap:9px; justify-content:center; margin:9px 0; flex-wrap:wrap;}
+.ki{background:rgba(255,255,255,0.1); border-radius:99px;padding:7px 14px;font-size:12px;}
+.ki .k{font-size:16px; font-weight:bold; margin-right:4px; display:inline-block;}
+#name-in{font-size:20px;padding:9px 18px; border-radius:11px;border:2px solid #534AB7;background:rgba(255,255,255,0.1); color:#fff;text-align:center; outline: none; width:260px; margin:10px 0; pointer-events:all;}
+#name-in::placeholder{color:rgba(255,255,255,0.38);}
+#score-tbl,#score-tbl2{width:100%; max-width:380px; margin:8px auto; border-collapse:collapse;}
+#score-tbl th,#score-tbl2 th{color:#AFA9EC;font-size:12px;padding:5px 9px;border-bottom:1px solid #534AB750;}
+#score-tbl td,#score-tbl2 td{color:#fff;font-size:13px;padding:4px 9px;text-align:center;}
+#score-tbl tr:nth-child(even) td, #score-tbl2 tr:nth-child(even) td{background:rgba(255,255,255,0.05);}
+/* Level overlay */
+#lv-ov{position:fixed; inset:0;z-index:15;display:none; flex-direction: column; align-items:center; justify-content:center; background:rgba(0,0,0,0.9); backdrop-filter:blur(10px);color:#fff;text-align:center;padding:18px;}
+#lv-ov h2{font-size:25px;margin-bottom:5px;}
+#lv-yt{width:420px; max-width:86vw; aspect-ratio:16/9;border-radius:11px; overflow:hidden;margin:7px 0;box-shadow:0 8px 30px #000c;}
+#lv-yt iframe{width:100%;height:100%;border:none;}
+#ai-msg{font-size:13px;opacity:0.85;max-width:420px; line-height:1.7;margin:7px auto;min-height:40px;}
+#cnt-btn{padding:9px 26px;font-size:14px;background:#534AB7; border:none;border-radius:50px;color:#fff;cursor:pointer; pointer-events:all;margin-top:5px;}
+/* Sound unlock button */
+#sound-btn{position:fixed; bottom: 12px; right:14px;z-index:5;font-size:11px;padding: 4px 11px;border-radius:99px;background:rgba(83,74,183,0.8); color:#fff;border:1px solid #534AB7;cursor:pointer; pointer-events:all; display:none;}
+/* Multiplayer indicators */
+#multi-status{margin-top:6px;font-size:11px; color:#6BCB77;min-height:15px;font-weight:bold;}
+.opp-avatar{position:absolute;bottom:15px;text-align:center; pointer-events:none;animation: bob 1.5s ease-in-out infinite;transition: left 0.4s ease-out;display: flex; flex-direction:column; align-items:center; z-index:3;}
+.opp-tag{background:rgba(83,74,183,0.85); color:#fff;font-size:11px;font-weight:bold;padding:3px 8px;border-radius:6px;margin-bottom:4px;white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,0.5);}
+.opp-emoji{font-size:42px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));}
+@keyframes bob{0%, 100%{transform: translateY(0)} 50% {transform:translateY(-8px)}}
+</style>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#0a0a12; font-family:'Segoe UI', sans-serif; overflow:hidden; color:#fff; }
-  
-  /* GRID LAYOUT FOR REAL-TIME MULTI-VIEW */
-  #arena-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr; /* Split screen 2-player view */
-    width: 100vw;
-    height: 100vh;
-    gap: 8px;
-    padding: 8px;
-    background: #111;
-  }
-
-  .player-card {
-    position: relative;
-    border: 2px solid #534AB7;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #1a1a2e;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .player-card.active-me {
-    border-color: #6BCB77;
-    box-shadow: 0 0 15px rgba(107, 203, 119, 0.4);
-  }
-
-  .player-header {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    display: flex;
-    justify-content: space-between;
-    z-index: 10;
-    background: rgba(0,0,0,0.6);
-    padding: 6px 12px;
-    border-radius: 8px;
-  }
-
-  .dance-pad-display {
-    font-size: 80px;
-    margin-top: 20px;
-    transition: transform 0.1s ease;
-  }
-
-  .status-badge {
-    position: fixed;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100;
-    background: rgba(0,0,0,0.85);
-    border: 1px solid #6BCB77;
-    color: #6BCB77;
-    padding: 6px 16px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: bold;
-  }
-</style>
 </head>
 <body>
-
-<div id="status-bar" class="status-badge">⚡ Realtime Multiplayer Grid Active</div>
-
-<!-- 2-PLAYER SPLIT SCREEN ARENA -->
-<div id="arena-grid">
-  <!-- PLAYER 1 (YOU) -->
-  <div class="player-card active-me" id="card-me">
-    <div class="player-header">
-      <span id="my-name">Player 1 ( You )</span>
-      <span id="my-score">Score: 0</span>
-    </div>
-    <div class="dance-pad-display" id="my-pad">😐</div>
-    <p style="margin-top:10px; color:#aaa;">Press [W, A, S, D] to Dance</p>
-  </div>
-
-  <!-- PLAYER 2 (REMOTE OPPONENT) -->
-  <div class="player-card" id="card-opp">
-    <div class="player-header">
-      <span id="opp-name">Waiting for Player 2...</span>
-      <span id="opp-score">Score: 0</span>
-    </div>
-    <div class="dance-pad-display" id="opp-pad">⏳</div>
-    <p style="margin-top:10px; color:#aaa;" id="opp-status">Waiting for real-time connection...</p>
-  </div>
+<div id="yt-bg"><iframe id="yt-iframe" allow="autoplay" allowfullscreen></iframe></div>
+<div id="bg-tint"></div>
+<canvas id="gc"></canvas>
+<div id="ui">
+<div id="topbar">
+<div id="score-box"><span id="pname"></span> Score: <span id="sc">0</span> | Lv<span id="lv">1</span></div>
+<div id="lives"></div>
+<div id="combo"></div>
+<div id="emotion-bar">
+<div class="ek" id="ek-w"><span class="em">😄</span><span class="lb">Happy 開心</span><span class="kk">W ↑</span></div>
+<div class="ek" id="ek-a"><span class="em">😡</span><span class="lb">Angry 生氣</span><span class="kk">A ←</span></div>
+<div class="ek" id="ek-s"><span class="em">😢</span><span class="lb">Sad 難過</span><span class="kk">S ↓</span></div>
+<div class="ek" id="ek-d"><span class="em">🧘</span><span class="lb">Calm 平靜</span><span class="kk">D →</span></div>
+</div>
+</div>
+<div id="prompt-box">
+<span id="prompt-emoji">😄</span>
+<div id="prompt-text">Express this emotion!</div>
+<div id="prompt-sub">Step on W!</div>
+</div>
+<div id="tilt-wrap"><span id="tilt-label">Calm | Sad | Happy | Angry</span><div id="tilt-bar"><div id="tilt-dot"></div></div></div>
+<div id="bt-btn" onclick="connectBT()">Connect Micro:Bit</div>
+<button id="sound-btn" onclick="unlockSound()">Tap to enable sound</button>
+<div id="progress-bar"></div>
 </div>
 
+<!-- NAME OVERLAY -->
+<div class="ov" id="name-ov">
+<h1>Emotion Dance 情緒舞蹈</h1>
+<p>Catch falling emojis by stepping on the matching DDR pad!<br>Tilt Micro:Bit left/right to select your emotion zone.</p>
+<div class="km">
+<div class="ki"><span class="k">W</span> Happy</div>
+<div class="ki"><span class="k">A</span> Angry</div>
+<div class="ki"><span class="k">S</span> Sad</div>
+<div class="ki"><span class="k">D</span> Calm</div>
+</div>
+<p style="font-size:12px; color: #AFA9EC;margin-bottom:3px">Enter your name for the leaderboard 輸入名字</p>
+<input id="name-in" type="text" maxlength="16" placeholder="Your name 你的名字..."/>
+<div id="multi-status">Connecting to Realtime Database...</div>
+<button class="bb" onclick="tryStart()">Start Dancing! 開始</button>
+<div style="margin-top:16px;width: 100%; max-width:380px">
+<p style="font-size:12px; color:#AFA9EC; margin-bottom:5px">High Scores</p>
+<table id="score-tbl"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Lv</th></tr></thead><tbody id="sb1"></tbody></table>
+</div>
+</div>
+
+<!-- GAME OVER OVERLAY -->
+<div class="ov" id="go-ov" style="display:none">
+<h1>Game Over! 遊戲結束</h1>
+<div style="font-size:54px;margin:10px 0" id="fin-sc">0</div>
+<p id="fin-msg"></p>
+<div style="margin-top:12px;width:100%; max-width:380px">
+<p style="font-size:12px;color:#AFA9EC; margin-bottom:5px">High Scores</p>
+<table id="score-tbl2"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Lv</th></tr></thead><tbody id="sb2"></tbody></table>
+</div>
+<button class="bb" onclick="resetGame()">Dance Again! 再跳一次</button>
+</div>
+
+<!-- LEVEL OVERLAY -->
+<div id="lv-ov">
+<h2 id="lv-title">Level Complete!</h2>
+<div id="lv-yt"><iframe id="lv-iframe" allow="autoplay" allowfullscreen></iframe></div>
+<div id="ai-msg">Loading...</div>
+<button id="cnt-btn" onclick="continueGame()">Continue! 繼續→</button>
+</div>
+
+<!-- Multiplayer avatar elements will append dynamically here -->
+<div id="opponents-lobby" style="position:fixed; inset:0;z-index:3; pointer-events:none;"></div>
+
 <script>
-// 1. FIXED FIREBASE CONFIGURATION
+// ═══════ CLOUD & DATABASE CONFIGURATION ═══════
 const firebaseConfig = {
     apiKey: "AIzaSyBT06UhmGbTP_8G4Sjr41G8b0H4dKVCjy8",
     authDomain: "emotion-dance-battle.firebaseapp.com",
@@ -111,71 +146,415 @@ const firebaseConfig = {
     appId: "1:47052488466:web:2fac8b10617898aac3fdcb"
 };
 
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+const THINGSPEAK_WRITE_KEY = "YOUR_THINGSPEAK_WRITE_KEY_HERE";
 
-const myId = "player_" + Math.floor(Math.random() * 8999 + 1000);
-const myName = prompt("Enter your Name for the Live Multi-View Grid:", "Player " + myId.slice(-3));
-document.getElementById('my-name').textContent = myName + " (You)";
+let database = null;
+let myPlayerId = "player_" + Math.floor(Math.random() * 100000);
+let multiConnected = false;
 
-const EMOJIS = {
-  w: "😄 Happy",
-  a: "😡 Angry",
-  s: "😢 Sad",
-  d: "🧘 Calm",
-  none: "😐 Neutral"
-};
-
-let myScore = 0;
-
-// 2. BROADCAST MY REALTIME DANCE MOVES TO FIREBASE
-function sendMove(key) {
-  database.ref('live_arena/' + myId).set({
-    name: myName,
-    key: key,
-    score: myScore,
-    lastActive: Date.now()
-  });
+try {
+    firebase.initializeApp(firebaseConfig);
+    database = firebase.database();
+    multiConnected = true;
+    document.getElementById('multi-status').textContent = '⚡ Connected to Multiplayer Database!';
+    document.getElementById('multi-status').style.color = '#6BCB77';
+} catch(e) {
+    console.error("Firebase init failed: ", e);
+    document.getElementById('multi-status').textContent = '⚠️ Sandbox Mode (Offline)';
+    document.getElementById('multi-status').style.color = '#FFA500';
 }
 
-// 3. LISTEN TO ALL OTHER PLAYERS IN REALTIME
-database.ref('live_arena').on('value', (snapshot) => {
-  const players = snapshot.val() || {};
-  
-  for (let id in players) {
-    if (id !== myId) {
-      const opp = players[id];
-      
-      // Update Player 2 Split View live!
-      document.getElementById('opp-name').textContent = opp.name;
-      document.getElementById('opp-score').textContent = "Score: " + opp.score;
-      document.getElementById('opp-pad').textContent = EMOJIS[opp.key] || "😐 Neutral";
-      document.getElementById('opp-status').textContent = "⚡ Realtime Sync Active";
+const EMO = {
+    w:{name:'Happy',zh:'開心',emoji:'😄',col:'#FFD93D',par:'#FFD93D',tint:'rgba(255,180,50,0.12)',yt:'3OY0MRbK9X8'},
+    a:{name:'Angry',zh:'生氣',emoji:'😡',col:'#FF4444',par:'#FF6644',tint:'rgba(180,20,20,0.15)',yt:'aHzBDM2p8j0'},
+    s:{name:'Sad',zh:'難過',emoji:'😢',col:'#4D96FF',par:'#4D96FF',tint:'rgba(20,60,160,0.15)',yt:'-jz1JHGkDJk'},
+    d:{name:'Calm',zh:'平靜',emoji:'🧘',col:'#6BCB77',par:'#6BCB77',tint:'rgba(20,120,50,0.12)',yt:'8FsliKFNzcE'}
+};
+const KS = ['w','a','s','d'];
+const LV_YT = ['3OY0MRbK9X8', 'aHzBDM2p8j0','-jz1JHGkDJk', '8FsliKFNzcE'];
+
+function getScores(){try{return JSON.parse(localStorage.getItem('emoDance2')||'[]');}catch{return [];}}
+function saveScore(n,s,l){
+    const a=getScores();
+    a.push({n,s,l});
+    a.sort((x,y)=>y.s-x.s);
+    a.splice(10);
+    localStorage.setItem('emoDance2', JSON.stringify(a));
+    if (THINGSPEAK_WRITE_KEY !== "YOUR_THINGSPEAK_WRITE_KEY_HERE") {
+        sendToThingSpeak(n, s, l);
     }
-  }
+}
+function renderScores(id){
+    const a=getScores(), tb=document.getElementById(id);
+    const medals=['🥇','🥈','🥉'];
+    tb.innerHTML = a.length ? a.map((r,i)=>`<tr><td>${medals[i] || i+1}</td><td>${r.n}</td><td style="color:${i<3?['#FFD700','#C0C0C0','#CD7F32'][i]:'#fff'};font-weight:${i<3?700:400}">${r.s}</td><td style="opacity:.7">Lv${r.l}</td></tr>`).join('') : '<tr><td colspan="4" style="opacity:.5;padding:8px">No scores yet! Be first!</td></tr>';
+}
+
+function sendToThingSpeak(n, s, l) {
+    const url = `https://api.thingspeak.com/update?api_key=${THINGSPEAK_WRITE_KEY}&field1=${s}&field2=${l}&status=${encodeURIComponent(n + " completed session!")}`;
+    fetch(url).catch(err => console.warn(err));
+}
+
+let ac=null,mTimer=null,mStep=0,curMusic=null,soundReady=false;
+function getAC(){if(!ac)ac=new(window.AudioContext || window.webkitAudioContext)();return ac;}
+function unlockSound(){
+    const a=getAC();
+    const buf=a.createBuffer(1,1,22050);
+    const src=a.createBufferSource();
+    src.buffer=buf; src.connect(a.destination); src.start(0);
+    soundReady=true;
+    document.getElementById('sound-btn').style.display='none';
+    if(curMusic) startMusic(curMusic);
+}
+
+function tone(f,t,d,v=0.12,delay=0){
+    if(!soundReady) return;
+    const a=getAC(), o=a.createOscillator(), g=a.createGain(), now=a.currentTime;
+    o.connect(g);g.connect(a.destination);
+    o.type=t;o.frequency.value=f;
+    g.gain.setValueAtTime(0,now+delay);
+    g.gain.linearRampToValueAtTime(v,now+delay+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,now+delay+d);
+    o.start(now+delay); o.stop(now+delay+d+0.05);
+}
+
+const PAT={
+    w:{bpm:180,st:[{f:523,t:'square',v:0.1},{f:659,t:'square',v:0.09},{f:784,t:'square',v:0.1},{f:1047,t:'square',v:0.09},{f:784,t:'square',v:0.08},{f:659,t:'square',v:0.09}],bs:[262,262,196,196,220,220]},
+    a:{bpm:155,st:[{f:110,t:'sawtooth',v:0.15},{f:110,t:'sawtooth',v:0.08},{f:147,t:'sawtooth',v:0.15},{f:110,t:'sawtooth',v:0.08},{f:98,t:'sawtooth',v:0.17},{f:110,t:'sawtooth',v:0.09}],bs:[55,55,55,73,55,55]},
+    s:{bpm:70,st:[{f:392,t:'sine',v:0.09},{f:349,t:'sine',v:0.07},{f:330,t:'sine',v:0.09},{f:294,t:'sine',v:0.07},{f:330,t:'sine',v:0.07},{f:349,t:'sine',v:0.07}],bs:[98,98,110,98,110,110]},
+    d:{bpm:88,st:[{f:528,t:'sine',v:0.07},{f:594,t:'sine',v:0.06},{f:660,t:'sine',v:0.07},{f:594,t:'sine',v:0.06},{f:528,t:'sine',v:0.06},{f:462,t:'sine',v:0.06}],bs:[132,132,165,132,110,132]}
+};
+
+function startMusic(k){
+    if(!soundReady) {curMusic=k; return;}
+    if(curMusic===k) return;
+    stopMusic(); curMusic=k;mStep=0;
+    const p=PAT[k], ms=(60/p.bpm)*1000;
+    mTimer=setInterval(()=>{
+        const s=p.st[mStep%p.st.length], b=p.bs[mStep%p.bs.length];
+        tone(s.f,s.t,ms/900,s.v);
+        tone(b,'triangle',ms/700,0.045);
+        if(mStep%2===0)tone(8000,'square',0.03,0.012);
+        mStep++;
+    },ms);
+}
+function stopMusic(){if(mTimer){clearInterval(mTimer);mTimer=null;}curMusic=null;}
+
+function sfx(t){
+    if(!soundReady)return;
+    if(t==='catch'){tone(523,'sine',0.07,0.4); tone(659,'sine',0.07,0.35,0.07); tone(784,'sine',0.1,0.35,0.14);}
+    else if(t==='miss'){tone(200,'sawtooth',0.15,0.3); tone(140,'sawtooth',0.15,0.25,0.1);}
+    else if(t==='lvup'){[523,659,784,1047,1319].forEach((f,i)=>tone(f,'sine',0.15,0.38,i*0.09));}
+    else if(t==='combo'){tone(1047,'sine',0.09,0.48); tone(1319,'sine',0.08,0.44,0.06);}
+}
+
+let curYt=null;
+function setYtBg(k){
+    if(curYt===k)return;curYt=k;
+    const id=EMO[k].yt;
+    document.getElementById('yt-iframe').src=`https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&disablekb=1&modestbranding=1&playsinline=1`;
+    document.getElementById('bg-tint').style.background=EMO[k].tint;
+}
+function stopYtBg(){document.getElementById('yt-iframe').src="";curYt=null;}
+
+const gc=document.getElementById('gc');
+const cx=gc.getContext('2d');
+let W = gc.width = window.innerWidth;
+let H = gc.height = window.innerHeight;
+window.addEventListener('resize', ()=>{ W=gc.width=window.innerWidth; H=gc.height=window.innerHeight; });
+
+let score=0,lives=3,combo=0,level=1,running=false,frame=0,diff=1;
+let levelScore=0,levelTarget=10,items=[],parts=[],activeKeys={};
+let promptEmo='w',nextPrompt=0,playerName='Player';
+let tiltX=0,btConnected=false,tiltEmo=null;
+const stars=Array.from({length:55},()=>({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.6+0.3,b:Math.random()*10}));
+
+function setLives(){
+    const h=['🖤🖤🖤','❤️🖤🖤','❤️❤️🖤','❤️❤️❤️'];
+    document.getElementById('lives').textContent=h[Math.max(0,lives)];
+}
+
+function setProgress(){
+    const b=document.getElementById('progress-bar');
+    b.style.width=((levelScore/levelTarget)*100)+'%';
+    b.style.background=EMO[promptEmo].col;
+}
+
+function newPrompt(){
+    promptEmo=KS[Math.floor(Math.random()*4)];
+    const e=EMO[promptEmo];
+    document.getElementById('prompt-emoji').textContent=e.emoji;
+    document.getElementById('prompt-text').textContent=`Express: ${e.name} ${e.zh}`;
+    document.getElementById('prompt-sub').textContent=btConnected?'Tilt Micro:Bit + step!':`Step on ${e.name} key!`;
+    nextPrompt=frame+95+Math.floor(Math.random()*75);
+}
+
+function burst(x,y,c,n=14){
+    for(let i=0;i<n;i++){
+        const a=(i/n)*Math.PI*2, sp=3+Math.random()*6;
+        parts.push({x,y,c,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:1,dec:0.03+Math.random()*0.03,r:4+Math.random()*8});
+    }
+}
+
+function spawnItem(){
+    const k=KS[Math.floor(Math.random()*4)];
+    items.push({x:55+Math.random()*(W-110),y:-45,emo:k,spd:2+level*0.33+Math.random()*1.1,sz:50+Math.random()*13,wb:Math.random()*Math.PI*2,done:false,caught:false,alpha:1});
+}
+
+function getActiveEmo(){
+    for(const k of KS){if(activeKeys[k])return k;}
+    if(btConnected&&tiltEmo) return tiltEmo;
+    return null;
+}
+
+function writeLocalStateToCloud(pressedKey) {
+    if (!multiConnected) return;
+    database.ref('players/' + myPlayerId).set({
+        name: playerName,
+        activeKey: pressedKey || "none",
+        score: score,
+        level: level,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+}
+
+function loop(){
+    if(!running)return;
+    frame++;
+    cx.clearRect(0,0,W,H);
+    stars.forEach(s=>{
+        const a=0.18+0.32*Math.abs(Math.sin(frame*0.007+s.b));
+        cx.fillStyle=`rgba(200,200,255,${a})`;
+        cx.fillRect(s.x,s.y,s.s,s.s);
+    });
+
+    if(frame%Math.max(26,80-level*7)===0)spawnItem();
+    if(frame>=nextPrompt) newPrompt();
+
+    if(btConnected){
+        if(Math.abs(tiltX)<150)tiltEmo=null;
+        else if(tiltX>550)tiltEmo='a';
+        else if(tiltX>150)tiltEmo='w';
+        else if(tiltX<-550)tiltEmo='d';
+        else tiltEmo='s';
+        const pct=Math.min(Math.max((tiltX+1024)/2048,0),1);
+        document.getElementById('tilt-dot').style.left=(pct*244+8)+'px';
+        KS.forEach(k=>{
+            const el=document.getElementById(`ek-${k}`);
+            if(tiltEmo===k)el.classList.add('active'); 
+            else if(!activeKeys[k])el.classList.remove('active');
+        });
+    }
+
+    const cz=H-162;
+    cx.strokeStyle='rgba(255,255,255,0.09)'; cx.lineWidth=1.5;cx.setLineDash([9,7]);
+    cx.beginPath();cx.moveTo(0,cz); cx.lineTo(W,cz);cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle='rgba(255,255,255,0.03)'; cx.fillRect(0,cz,W,H-cz);
+    cx.fillStyle='rgba(255,255,255,0.18)';cx.font='10px sans-serif'; cx.textAlign='left';
+    cx.fillText('CATCH ZONE - step here!', 12,cz-5);
+
+    const ae=getActiveEmo();
+    if(ae){setYtBg(ae); startMusic(ae); }else stopMusic();
+
+    for(let it of items){
+        if(it.done){
+            it.alpha-=0.07;
+            it.y+=it.caught?-4:2;
+            continue;
+        }
+        it.y+=it.spd;it.wb+=0.04;it.x+=Math.sin(it.wb)*0.65;
+        if(it.emo===promptEmo&&ae===promptEmo&&it.y>cz&&it.y<H-42){
+            it.done=true;it.caught=true;
+            score+=10*(1+Math.floor(combo/3)); combo++;levelScore++;
+            sfx(combo%5===0?'combo':'catch');
+            burst(it.x,it.y,EMO[it.emo].par,16);
+            document.getElementById('sc').textContent=score;
+            writeLocalStateToCloud(ae);
+            if(combo%5===0) {
+                document.getElementById('combo').textContent=`${combo}x COMBO!`; 
+                setTimeout(()=>document.getElementById('combo').textContent='',1400);
+            }
+            setProgress();
+            if(levelScore>=levelTarget){showLevelUp(); return;}
+            continue;
+        }
+        if(it.y>H+28){
+            if(it.emo===promptEmo) {
+                combo=0;lives--;sfx('miss');
+                document.getElementById('combo').textContent='';
+                setLives();
+                if(lives<=0){endGame(); return;}
+            }
+            it.done=true;continue;
+        }
+        if(it.alpha>0){
+            cx.save();cx.globalAlpha=it.alpha;
+            if(it.emo===promptEmo) {cx.shadowColor=EMO[it.emo].par;cx.shadowBlur=22;}
+            cx.font=`${it.sz}px serif`;cx.textAlign='center';
+            cx.fillText(EMO[it.emo].emoji,it.x,it.y);
+            cx.restore();
+        }
+    }
+    items=items.filter(i=>i.alpha>0&&i.y<H+58);
+
+    for(let p of parts){
+        p.x+=p.vx;p.y+=p.vy;p.vy+=0.16;p.life-=p.dec;
+        if(p.life<=0)continue;
+        cx.save(); cx.globalAlpha=p.life;cx.fillStyle=p.c;cx.beginPath();cx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); cx.fill();cx.restore();
+    }
+    parts=parts.filter(p=>p.life>0);
+
+    requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown',e=>{
+    const k=e.key.toLowerCase();
+    if(!KS.includes(k) || !running || activeKeys[k])return;
+    if(!soundReady) {soundReady=true;document.getElementById('sound-btn').style.display='none'; if(ac)ac.resume();}
+    activeKeys[k]=true;
+    document.getElementById(`ek-${k}`).classList.add('active');
+    writeLocalStateToCloud(k);
 });
 
-// 4. KEYBOARD LISTENERS
-document.addEventListener('keydown', (e) => {
-  const k = e.key.toLowerCase();
-  if (['w','a','s','d'].includes(k)) {
-    myScore += 10;
-    document.getElementById('my-score').textContent = "Score: " + myScore;
-    document.getElementById('my-pad').textContent = EMOJIS[k];
-    sendMove(k);
-  }
+document.addEventListener('keyup',e=>{
+    const k=e.key.toLowerCase();
+    if(!KS.includes(k))return;
+    activeKeys[k]=false;
+    document.getElementById(`ek-${k}`).classList.remove('active');
+    writeLocalStateToCloud("none");
 });
 
-document.addEventListener('keyup', (e) => {
-  const k = e.key.toLowerCase();
-  if (['w','a','s','d'].includes(k)) {
-    document.getElementById('my-pad').textContent = "😐 Neutral";
-    sendMove('none');
-  }
-});
+const ACCEL_SVC = 'e95d0753-251d-470a-a062-fa1922dfa9a8';
+const ACCEL_CHAR = 'e95dca4b-251d-470a-a062-fa1922dfa9a8';
+async function connectBT(){
+    if(!navigator.bluetooth) {alert('Use Chrome on desktop or Android!'); return;}
+    const btn=document.getElementById('bt-btn');
+    try{
+        btn.textContent='Connecting...';
+        const device=await navigator.bluetooth.requestDevice({
+            filters:[{namePrefix: 'BBC micro:bit'}],
+            optionalServices: [ACCEL_SVC]
+        });
+        const server=await device.gatt.connect();
+        const svc=await server.getPrimaryService(ACCEL_SVC);
+        const char=await svc.getCharacteristic(ACCEL_CHAR);
+        await char.startNotifications();
+        char.addEventListener('characteristicvaluechanged', e=>{
+            tiltX=e.target.value.getInt16(0,true);
+        });
+        btConnected=true;
+        btn.textContent='✓ Micro:Bit connected';
+        btn.style.color='#6BCB77'; btn.style.borderColor='#6BCB77';
+        document.getElementById('tilt-wrap').style.display='flex';
+        device.addEventListener('gattserverdisconnected', ()=>{
+            btConnected=false; tiltX=0;tiltEmo=null;
+            btn.textContent='Connect Micro:Bit';
+            btn.style.color='#7F77DD'; btn.style.borderColor='#534AB7';
+            document.getElementById('tilt-wrap').style.display='none';
+        });
+    }catch(err){
+        btn.textContent='✕ Failed tap to retry';
+        setTimeout(()=>btn.textContent='Connect Micro:Bit', 3000);
+    }
+}
 
-// Register initial presence
-sendMove('none');
+// MULTIPLAYER REALTIME LISTENER
+if (multiConnected) {
+    database.ref('players').on('value', (snapshot) => {
+        const list = snapshot.val() || {};
+        const lobby = document.getElementById('opponents-lobby');
+        lobby.innerHTML = "";
+        let index = 0;
+        const now = Date.now();
+        for (let id in list) {
+            if (id === myPlayerId) continue;
+            const opp = list[id];
+            if (now - opp.timestamp > 40000) continue;
+            
+            const div = document.createElement('div');
+            div.className = 'opp-avatar';
+            const horizontalSpacing = 15 + (index * 22);
+            div.style.left = `${horizontalSpacing}%`;
+            
+            const currentActionKey = opp.activeKey && opp.activeKey !== "none" ? opp.activeKey : null;
+            const displayEmoji = currentActionKey && EMO[currentActionKey] ? EMO[currentActionKey].emoji : "🕺";
+            
+            div.innerHTML = `
+                <div class="opp-tag">${opp.name} (Lv${opp.level} | ${opp.score}pts)</div>
+                <div class="opp-emoji">${displayEmoji}</div>
+            `;
+            lobby.appendChild(div);
+            index++;
+        }
+    });
+}
+
+async function showLevelUp(){
+    running=false; stopMusic(); sfx('lvup'); stopYtBg();
+    const titles=['Clear!', 'Happy Level Clear!','Angry Level Clear!','Sad Level Clear!','Calm Level Clear!'];
+    document.getElementById('lv-title').textContent=(titles[(level-1)%4])+'';
+    const vid=LV_YT[(level-1)%LV_YT.length];
+    document.getElementById('lv-iframe').src=`https://www.youtube.com/embed/${vid}?autoplay=1&controls=1&modestbranding=1`;
+    document.getElementById('ai-msg').textContent=`Great job ${playerName}! Preparing next stage...`;
+    document.getElementById('lv-ov').style.display='flex';
+}
+
+function continueGame(){
+    document.getElementById('lv-iframe').src="";
+    document.getElementById('lv-ov').style.display='none';
+    level++; levelScore=0; levelTarget=10+level*3; diff=1+level*0.15;
+    document.getElementById('lv').textContent=level;
+    running=true;newPrompt(); setProgress();
+    setYtBg(promptEmo);
+    requestAnimationFrame(loop);
+}
+
+function endGame(){
+    running=false; stopMusic(); stopYtBg();
+    saveScore(playerName, score, level);
+    document.getElementById('fin-sc').textContent=score;
+    document.getElementById('fin-msg').textContent=`${playerName} reached Level ${level}!`;
+    renderScores('sb2');
+    document.getElementById('go-ov').style.display='flex';
+}
+
+function resetGame(){
+    document.getElementById('go-ov').style.display='none';
+    renderScores('sb1');
+    document.getElementById('name-ov').style.display='flex';
+}
+
+function tryStart(){
+    const n = document.getElementById('name-in').value.trim();
+    if(!n){
+        document.getElementById('name-in').style.borderColor='#FF4444'; 
+        document.getElementById('name-in').placeholder='Please enter a name! 請輸入名字!';
+        return;
+    }
+    playerName = n;
+    document.getElementById('pname').textContent=n+' |';
+    getAC(); soundReady=true;
+    document.getElementById('name-ov').style.display='none';
+    score=0;lives=3;combo=0;level=1;frame=0;levelScore=0;levelTarget=10;diff=1;
+    items=[];parts=[]; activeKeys={};
+    document.getElementById('sc').textContent=0;
+    document.getElementById('lv').textContent=1;
+    document.getElementById('combo').textContent='';
+    setLives(); newPrompt(); setProgress();
+    setYtBg('w');
+    running=true;
+    writeLocalStateToCloud("none");
+    requestAnimationFrame(loop);
+}
+
+document.getElementById('name-in').addEventListener('keydown', e=>{if(e.key==='Enter')tryStart();});
+renderScores('sb1');
+
+window.tryStart=tryStart; 
+window.connectBT=connectBT; 
+window.continueGame=continueGame; 
+window.resetGame=resetGame; 
+window.unlockSound=unlockSound;
 </script>
 </body>
 </html>
