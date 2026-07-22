@@ -2,107 +2,107 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PEAK: Scout Expedition Engine</title>
+  <title>PEAK 3D: Mountain Expedition</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0f141d;
+      background: #0b0e14;
       color: #fff;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
       overflow: hidden;
+      width: 100vw;
+      height: 100vh;
     }
-    #game-container {
-      position: relative;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-      border-radius: 8px;
-      overflow: hidden;
-      border: 3px solid #3a475a;
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
-    canvas { background: #1a222d; display: block; }
     
     /* HUD Overlays */
     .hud-panel {
       position: absolute;
-      top: 15px;
-      left: 15px;
-      background: rgba(15, 20, 29, 0.85);
-      padding: 12px 18px;
-      border-radius: 6px;
-      border: 1px solid #4a5a70;
+      top: 20px;
+      left: 20px;
+      background: rgba(11, 14, 20, 0.85);
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(8px);
       pointer-events: none;
+      z-index: 10;
     }
-    .hud-title { font-weight: bold; color: #4db8ff; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
-    .bar-container { width: 180px; height: 14px; background: #222; border-radius: 7px; overflow: hidden; margin-bottom: 8px; border: 1px solid #444; }
-    .bar-fill { height: 100%; transition: width 0.1s linear; }
-    #stamina-bar { background: linear-gradient(90deg, #e67e22, #2ecc71); width: 100%; }
+    .hud-title { font-weight: bold; color: #4db8ff; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .bar-container { width: 200px; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1); }
+    #stamina-bar { height: 100%; background: linear-gradient(90deg, #e67e22, #2ecc71); width: 100%; transition: width 0.1s linear; }
     
     .status-badge {
       position: absolute;
-      top: 15px;
-      right: 15px;
-      background: rgba(15, 20, 29, 0.85);
-      padding: 8px 14px;
-      border-radius: 6px;
-      border: 1px solid #4a5a70;
+      top: 20px;
+      right: 20px;
+      background: rgba(11, 14, 20, 0.85);
+      padding: 10px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(8px);
       font-size: 13px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      z-index: 10;
     }
     .indicator { width: 10px; height: 10px; border-radius: 50%; background: #e74c3c; }
-    .indicator.online { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+    .indicator.online { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
 
     .controls-hint {
       position: absolute;
-      bottom: 15px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 20, 29, 0.8);
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      color: #aaa;
-      border: 1px solid #3a475a;
+      background: rgba(11, 14, 20, 0.85);
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-size: 13px;
+      color: #ccc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(8px);
       pointer-events: none;
+      z-index: 10;
     }
   </style>
 
-  <!-- Firebase App & Realtime Database SDKs -->
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
-<div id="game-container">
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
-  
-  <div class="hud-panel">
-    <div class="hud-title">Scout Stamina</div>
-    <div class="bar-container">
-      <div id="stamina-bar" class="bar-fill"></div>
-    </div>
-    <div class="hud-title" id="biome-label">Biome: The Shore</div>
-    <div style="font-size: 14px; color: #f39c12;" id="alt-label">Altitude: 0m</div>
-  </div>
+<div id="canvas-container"></div>
 
-  <div class="status-badge">
-    <div id="net-status" class="indicator"></div>
-    <span id="net-text">Solo Explorer</span>
+<div class="hud-panel">
+  <div class="hud-title">Scout Stamina</div>
+  <div class="bar-container">
+    <div id="stamina-bar"></div>
   </div>
+  <div class="hud-title" id="biome-label">Biome: Alpine Foothills</div>
+  <div style="font-size: 16px; font-weight: bold; color: #f39c12; margin-top: 4px;" id="alt-label">Altitude: 0m</div>
+</div>
 
-  <div class="controls-hint">
-    [WASD / Arrow Keys] Move/Climb | [SHIFT] Lunge | [SPACE] Drop Rope/Anchor | [Micro:bit Tilt Supported]
-  </div>
+<div class="status-badge">
+  <div id="net-status" class="indicator"></div>
+  <span id="net-text">Offline Explorer</span>
+</div>
+
+<div class="controls-hint">
+  <b>[W/S]</b> Climb Up/Down &nbsp;|&nbsp; <b>[A/D]</b> Traverse Left/Right &nbsp;|&nbsp; <b>[SPACE]</b> Deploy Rope Anchor &nbsp;|&nbsp; <b>[SHIFT]</b> Speed Sprint
 </div>
 
 <script>
-  // --- 1. FIREBASE INITIALIZATION ---
-  // Replace this config with your Firebase credentials!
+  // --- 1. FIREBASE SETUP ---
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -116,29 +116,26 @@
   let db = null;
   let playerRef = null;
   let playersRef = null;
-
-  // Generate unique ID for session
-  const playerId = 'scout_' + Math.floor(Math.random() * 10000);
-  let otherPlayers = {};
+  const playerId = 'scout3d_' + Math.floor(Math.random() * 10000);
+  let peerPlayers = {};
+  let peerMeshes = {};
 
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    playersRef = db.ref('peak_expedition/players');
-    playerRef = db.ref(`peak_expedition/players/${playerId}`);
+    playersRef = db.ref('peak_3d/players');
+    playerRef = db.ref(`peak_3d/players/${playerId}`);
 
-    // Disconnect cleanup
     playerRef.onDisconnect().remove();
 
-    // Listen for other players
     playersRef.on('value', (snapshot) => {
       const data = snapshot.val() || {};
-      otherPlayers = {};
+      peerPlayers = {};
       let peerCount = 0;
       
       for (let id in data) {
         if (id !== playerId) {
-          otherPlayers[id] = data[id];
+          peerPlayers[id] = data[id];
           peerCount++;
         }
       }
@@ -152,226 +149,251 @@
         indicator.classList.remove('online');
         text.textContent = `Solo Explorer`;
       }
+      
+      updatePeerMeshes();
     });
   } catch (e) {
-    console.warn("Firebase not configured or failed to connect. Running offline mode.", e);
+    console.warn("Firebase running in offline sandbox mode.", e);
   }
 
-  // --- 2. GAME ENGINE & CANVAS SETUP ---
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
+  // --- 2. THREE.JS 3D SCENE SETUP ---
+  const container = document.getElementById('canvas-container');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b132b);
+  scene.fog = new THREE.FogExp2(0x0b132b, 0.015);
 
-  // Input States
-  const keys = { Up: false, Down: false, Left: false, Right: false, Lunge: false, Action: false };
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  container.appendChild(renderer.domElement);
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambientLight);
+
+  const sunLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+  sunLight.position.set(50, 100, 50);
+  sunLight.castShadow = true;
+  scene.add(sunLight);
+
+  // --- 3. PROCEDURAL 3D MOUNTAIN GENERATION ---
+  const mountainGroup = new THREE.Group();
+  scene.add(mountainGroup);
+
+  // Create stylized low-poly mountain sections
+  const mountainGeo = new THREE.CylinderGeometry(15, 60, 400, 32, 40);
+  // Distort vertices to make it look rugged and rocky
+  const pos = mountainGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+    v.x += (Math.random() - 0.5) * 4;
+    v.z += (Math.random() - 0.5) * 4;
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  mountainGeo.computeVertexNormals();
+
+  const mountainMat = new THREE.MeshStandardMaterial({
+    color: 0x4a5568,
+    roughness: 0.9,
+    metalness: 0.1,
+    flatShading: true
+  });
+
+  const mountainMesh = new THREE.Mesh(mountainGeo, mountainMat);
+  mountainMesh.position.y = 150;
+  mountainMesh.receiveShadow = true;
+  mountainGroup.add(mountainMesh);
+
+  // Add 3D Climbing Hold Ledges
+  const holds = [];
+  const holdGeo = new THREE.BoxGeometry(2.5, 0.6, 1.2);
+  const holdMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.5 });
+
+  for (let y = -20; y < 350; y += 4 + Math.random() * 3) {
+    const angle = (Math.random() - 0.5) * 1.2; // Front face spread
+    const radius = 38 - (y * 0.05); // Radius shrinks as mountain goes up
+    const x = Math.sin(angle) * radius;
+    const z = Math.cos(angle) * radius;
+
+    const holdMesh = new THREE.Mesh(holdGeo, holdMat);
+    holdMesh.position.set(x, y, z);
+    holdMesh.lookAt(0, y, 0);
+    mountainGroup.add(holdMesh);
+    holds.push({ x, y, z, mesh: holdMesh });
+  }
+
+  // --- 4. PLAYER CHARACTER 3D MODEL ---
+  const playerGroup = new THREE.Group();
+  const playerColor = Math.floor(Math.random() * 16777215);
+
+  // Body
+  const bodyGeo = new THREE.CapsuleGeometry(0.8, 1.2, 4, 8);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: playerColor, roughness: 0.3 });
+  const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+  bodyMesh.castShadow = true;
+  playerGroup.add(bodyMesh);
+
+  // Backpack
+  const packGeo = new THREE.BoxGeometry(1, 1.2, 0.6);
+  const packMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+  const packMesh = new THREE.Mesh(packGeo, packMat);
+  packMesh.position.set(0, 0, -0.6);
+  playerGroup.add(packMesh);
+
+  scene.add(playerGroup);
+
+  // Local State
+  const player = {
+    x: 0,
+    y: 0,
+    z: 38,
+    stamina: 100,
+    maxStamina: 100,
+    isClimbing: true,
+    ropeAnchor: null
+  };
+
+  // --- 5. CONTROLS & PHYSICS ENGINE ---
+  const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
 
   window.addEventListener('keydown', e => handleKey(e, true));
   window.addEventListener('keyup', e => handleKey(e, false));
 
-  function handleKey(e, isPressed) {
-    if (['ArrowUp', 'KeyW'].includes(e.code)) keys.Up = isPressed;
-    if (['ArrowDown', 'KeyS'].includes(e.code)) keys.Down = isPressed;
-    if (['ArrowLeft', 'KeyA'].includes(e.code)) keys.Left = isPressed;
-    if (['ArrowRight', 'KeyD'].includes(e.code)) keys.Right = isPressed;
-    if (['ShiftLeft', 'ShiftRight'].includes(e.code)) keys.Lunge = isPressed;
-    if (['Space'].includes(e.code)) keys.Action = isPressed;
+  function handleKey(e, isDown) {
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.w = isDown;
+    if (k === 's') keys.s = isDown;
+    if (k === 'a') keys.a = isDown;
+    if (k === 'd') keys.d = isDown;
+    if (e.key === 'Shift') keys.shift = isDown;
+    if (e.key === ' ') keys.space = isDown;
   }
 
-  // --- 3. GAME WORLD & PLAYER STATE ---
-  const player = {
-    x: 400,
-    y: 500,
-    vx: 0,
-    vy: 0,
-    radius: 14,
-    stamina: 100,
-    maxStamina: 100,
-    isClimbing: false,
-    hasRopeDeployed: false,
-    ropeY: 0,
-    color: '#' + Math.floor(Math.random()*16777215).toString(16)
-  };
+  // Rope Objects Setup
+  const deployedRopes = [];
+  function createRopeMesh(x, y, z) {
+    const ropeGeo = new THREE.CylinderGeometry(0.1, 0.1, 20, 8);
+    const ropeMat = new THREE.MeshBasicMaterial({ color: 0xf1c40f });
+    const ropeMesh = new THREE.Mesh(ropeGeo, ropeMat);
+    ropeMesh.position.set(x, y - 10, z);
+    scene.add(ropeMesh);
+    return ropeMesh;
+  }
 
-  let cameraY = 0;
-  let worldAltitude = 0;
+  // Peer Rendering
+  function updatePeerMeshes() {
+    for (let id in peerPlayers) {
+      const pData = peerPlayers[id];
+      if (!peerMeshes[id]) {
+        // Create 3D Scout mesh for peer
+        const pGroup = new THREE.Group();
+        const pBody = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: pData.color || 0xe74c3c }));
+        pGroup.add(pBody);
+        scene.add(pGroup);
+        peerMeshes[id] = pGroup;
+      }
+      
+      // Update peer position smoothly
+      peerMeshes[id].position.set(pData.x, pData.y, pData.z);
+    }
 
-  // Procedural Rock Wall Ledges & Hold Points
-  const ledges = [];
-  function generateTerrain() {
-    for (let y = 600; y > -10000; y -= 60 + Math.random() * 40) {
-      const width = 80 + Math.random() * 120;
-      const x = Math.random() * (canvas.width - width);
-      ledges.push({ x, y, w: width, h: 16 });
+    // Clean up disconnected peer models
+    for (let id in peerMeshes) {
+      if (!peerPlayers[id]) {
+        scene.remove(peerMeshes[id]);
+        delete peerMeshes[id];
+      }
     }
   }
-  generateTerrain();
 
-  // Biome Themes
-  function getBiome(alt) {
-    if (alt < 1500) return { name: "The Shore", bg: "#1a222d", rock: "#4a5a70" };
-    if (alt < 4000) return { name: "Alpine Crags", bg: "#0f1b29", rock: "#7f8c8d" };
-    if (alt < 7000) return { name: "The Caldera", bg: "#2c1108", rock: "#e67e22" };
-    return { name: "Volcanic Peak", bg: "#1a0000", rock: "#e74c3c" };
-  }
+  // --- 6. GAME LOOP ---
+  let clock = new THREE.Clock();
 
-  // --- 4. GAME LOOP & PHYSICS ---
-  let lastTime = performance.now();
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
 
-  function update(dt) {
-    // Movement Physics
-    const speed = 2.5;
+    // Movement speeds
+    const moveSpeed = keys.shift ? 12 : 6;
     let moving = false;
 
-    // Check if touching any ledge
-    player.isClimbing = false;
-    for (let ledge of ledges) {
-      if (
-        player.x + player.radius > ledge.x &&
-        player.x - player.radius < ledge.x + ledge.w &&
-        player.y + player.radius >= ledge.y &&
-        player.y - player.radius <= ledge.y + ledge.h
-      ) {
-        player.isClimbing = true;
-        break;
-      }
-    }
-
-    // Controls & Stamina Logic
     if (player.stamina > 0) {
-      if (keys.Up) { player.y -= speed; moving = true; }
-      if (keys.Down) { player.y += speed; moving = true; }
-      if (keys.Left) { player.x -= speed; moving = true; }
-      if (keys.Right) { player.x += speed; moving = true; }
+      // WASD Controls
+      if (keys.w) { player.y += moveSpeed * delta; moving = true; }
+      if (keys.s) { player.y -= moveSpeed * delta; moving = true; }
+      if (keys.a) { player.x -= moveSpeed * delta; moving = true; }
+      if (keys.d) { player.x += moveSpeed * delta; moving = true; }
 
-      // Shift Lunge
-      if (keys.Lunge && moving) {
-        player.y -= speed * 1.8;
-        player.stamina -= 0.8;
-      }
-
-      // Stamina drain/recovery
-      if (moving && player.isClimbing) {
-        player.stamina = Math.max(0, player.stamina - 0.15);
-      } else if (!moving) {
-        player.stamina = Math.min(player.maxStamina, player.stamina + 0.3); // Rest to recover
+      // Stamina consumption
+      if (moving) {
+        player.stamina = Math.max(0, player.stamina - (keys.shift ? 25 : 10) * delta);
+      } else {
+        player.stamina = Math.min(player.maxStamina, player.stamina + 20 * delta); // Rest to recover
       }
     } else {
-      // Exhausted / Falling
-      player.isClimbing = false;
-      player.y += 5; // Gravity pull
-      player.stamina = Math.min(player.maxStamina, player.stamina + 0.05); // Slow recovery on fall
+      // Exhaustion Fall Physics
+      player.y -= 15 * delta; // Gravity pull
+      player.stamina = Math.min(player.maxStamina, player.stamina + 10 * delta);
     }
 
-    // Deploy Rope Action
-    if (keys.Action && !player.hasRopeDeployed) {
-      player.hasRopeDeployed = true;
-      player.ropeY = player.y;
+    // Wrap mountain radius based on height
+    const currentRadius = 38 - (player.y * 0.05);
+    const angle = player.x * 0.05;
+    player.z = Math.cos(angle) * currentRadius;
+    const computedX = Math.sin(angle) * currentRadius;
+
+    // Apply positions to 3D Player Group
+    playerGroup.position.set(computedX, player.y, player.z);
+    playerGroup.rotation.y = angle;
+
+    // Deploy Co-Op Rope Anchor
+    if (keys.space && !player.ropeAnchor) {
+      player.ropeAnchor = createRopeMesh(computedX, player.y, player.z);
     }
 
-    // Boundary constraints
-    player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+    // Camera follow (Third-Person dynamic target)
+    camera.position.set(computedX * 1.6, player.y + 4, player.z * 1.6 + 12);
+    camera.lookAt(computedX, player.y + 2, player.z);
 
-    // Camera follow (Smooth vertical tracking)
-    const targetCamY = player.y - 400;
-    cameraY += (targetCamY - cameraY) * 0.1;
-
-    // Altitude calculation
-    worldAltitude = Math.max(0, Math.floor((500 - player.y)));
-
-    // Sync to Firebase
+    // Sync state to Firebase
     if (playerRef) {
       playerRef.set({
-        x: player.x,
+        x: computedX,
         y: player.y,
+        z: player.z,
+        color: playerColor,
         stamina: player.stamina,
-        color: player.color,
-        hasRope: player.hasRopeDeployed,
-        ropeY: player.ropeY,
         updated: Date.now()
       });
     }
 
     // UI Updates
     document.getElementById('stamina-bar').style.width = `${(player.stamina / player.maxStamina) * 100}%`;
-    document.getElementById('alt-label').textContent = `Altitude: ${worldAltitude}m`;
-    const biome = getBiome(worldAltitude);
-    document.getElementById('biome-label').textContent = `Biome: ${biome.name}`;
-  }
+    const alt = Math.max(0, Math.floor(player.y * 10));
+    document.getElementById('alt-label').textContent = `Altitude: ${alt}m`;
 
-  // --- 5. RENDER SYSTEM ---
-  function render() {
-    const biome = getBiome(worldAltitude);
-    ctx.fillStyle = biome.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.translate(0, -cameraY);
-
-    // Draw Ledges / Climbing Holds
-    ctx.fillStyle = biome.rock;
-    for (let ledge of ledges) {
-      if (ledge.y > cameraY - 50 && ledge.y < cameraY + canvas.height + 50) {
-        ctx.beginPath();
-        ctx.roundRect(ledge.x, ledge.y, ledge.w, ledge.h, 6);
-        ctx.fill();
-      }
+    if (alt > 2000) {
+      document.getElementById('biome-label').textContent = "Biome: Volcanic Summit";
+      scene.background.setHex(0x1a0505);
+      scene.fog.color.setHex(0x1a0505);
+    } else if (alt > 1000) {
+      document.getElementById('biome-label').textContent = "Biome: High Crags";
+      scene.background.setHex(0x0f1b29);
+      scene.fog.color.setHex(0x0f1b29);
     }
 
-    // Draw Deployed Co-op Ropes
-    if (player.hasRopeDeployed) {
-      ctx.strokeStyle = '#f1c40f';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(player.x, player.ropeY);
-      ctx.lineTo(player.x, player.ropeY + 300);
-      ctx.stroke();
-    }
-
-    // Draw Other Online Players
-    for (let id in otherPlayers) {
-      const p = otherPlayers[id];
-      if (p.hasRope) {
-        ctx.strokeStyle = '#f1c40f';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.ropeY);
-        ctx.lineTo(p.x, p.ropeY + 300);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = p.color || '#e74c3c';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, player.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Peer label
-      ctx.fillStyle = '#fff';
-      ctx.font = '10px sans-serif';
-      ctx.fillText("Scout", p.x - 12, p.y - 18);
-    }
-
-    // Draw Local Player
-    ctx.fillStyle = player.color;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = player.isClimbing ? '#2ecc71' : '#ffffff';
-    ctx.stroke();
-
-    ctx.restore();
+    renderer.render(scene, camera);
   }
 
-  function loop(timestamp) {
-    const dt = timestamp - lastTime;
-    lastTime = timestamp;
+  // Window Resize Handle
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
 
-    update(dt);
-    render();
-
-    requestAnimationFrame(loop);
-  }
-
-  requestAnimationFrame(loop);
+  animate();
 </script>
 </body>
 </html>
