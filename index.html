@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>PEAK: Google Earth Micro:bit Expedition</title>
   
-  <!-- Cesium 3D Globe Library -->
+  <!-- Cesium 3D Globe Engine -->
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.108/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.108/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   
@@ -14,7 +14,7 @@
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #000; color: #fff; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a2332; color: #fff; }
     
     #cesiumContainer { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
@@ -23,19 +23,19 @@
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(10, 16, 26, 0.85);
+      background: rgba(10, 16, 26, 0.88);
       padding: 16px 20px;
       border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(10px);
       z-index: 100;
       box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-      min-width: 240px;
+      min-width: 250px;
     }
     
     .hud-title { font-weight: 700; color: #4db8ff; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-    .bar-container { width: 100%; height: 12px; background: rgba(0,0,0,0.6); border-radius: 6px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.2); }
-    #hp-bar { height: 100%; background: #e74c3c; width: 100%; transition: width 0.2s ease; }
+    .bar-container { width: 100%; height: 14px; background: rgba(0,0,0,0.6); border-radius: 7px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.2); }
+    #hp-bar { height: 100%; background: linear-gradient(90deg, #e74c3c, #2ecc71); width: 100%; transition: width 0.2s ease; }
 
     .btn-action {
       background: #2ecc71;
@@ -57,10 +57,10 @@
       position: absolute;
       top: 20px;
       right: 20px;
-      background: rgba(10, 16, 26, 0.85);
+      background: rgba(10, 16, 26, 0.88);
       padding: 10px 20px;
       border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(10px);
       font-size: 13px;
       display: flex;
@@ -80,7 +80,7 @@
       height: 158px;
       border-radius: 12px;
       overflow: hidden;
-      border: 2px solid rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.3);
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
       z-index: 100;
       background: #000;
@@ -92,15 +92,16 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(10, 16, 26, 0.85);
+      background: rgba(10, 16, 26, 0.88);
       padding: 12px 24px;
       border-radius: 30px;
       font-size: 13px;
       color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(10px);
       z-index: 100;
       pointer-events: none;
+      white-space: nowrap;
     }
   </style>
 </head>
@@ -118,7 +119,7 @@
   <div style="margin-top: 10px; display: flex; gap: 8px;">
     <button class="btn-action" onclick="connectMicrobit()">⚔️ Connect Micro:bit</button>
   </div>
-  <div id="bit-status" style="font-size: 11px; color: #aaa; margin-top: 6px;">Micro:bit: Disconnected</div>
+  <div id="bit-status" style="font-size: 11px; color: #aaa; margin-top: 6px;">Micro:bit: Optional (WASD + Space ready!)</div>
 </div>
 
 <!-- Multiplayer Status -->
@@ -133,7 +134,7 @@
 </div>
 
 <div class="controls-hint">
-  <b>[WASD]</b> Walk Map &nbsp;|&nbsp; <b>[SWING MICRO:BIT] / [SPACE]</b> Sword Slash
+  <b>[WASD]</b> Walk Map &nbsp;|&nbsp; <b>[SPACE]</b> Sword Slash &nbsp;|&nbsp; <b>[SWING MICRO:BIT]</b> Motion Slash
 </div>
 
 <script>
@@ -175,8 +176,7 @@
     });
   } catch(e) { console.error("Firebase fail:", e); }
 
-  // --- 2. GOOGLE EARTH / CESIUM 3D GLOBE INITIALIZATION ---
-  // Preset real-world climbing destinations
+  // --- 2. BRIGHT GOOGLE EARTH / CESIUM GLOBE INITIALIZATION ---
   const LOCATIONS = [
     { name: "Mount Everest", lat: 27.9881, lon: 86.9250, alt: 8848 },
     { name: "Grand Canyon", lat: 36.1069, lon: -112.1129, alt: 2200 },
@@ -186,9 +186,14 @@
   const startLoc = LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)];
   document.getElementById('location-label').textContent = `Location: ${startLoc.name}`;
 
-  Cesium.Ion.defaultAccessToken = ''; // Public default terrain
+  // Use free OpenStreetMap imagery so it ALWAYS renders brightly without API keys
+  const osmImagery = new Cesium.OpenStreetMapImageryProvider({
+    url: 'https://tile.openstreetmap.org/'
+  });
+
   const viewer = new Cesium.Viewer('cesiumContainer', {
-    terrainProvider: Cesium.createWorldTerrain(),
+    imageryProvider: osmImagery,
+    baseLayerPicker: false,
     animation: false,
     timeline: false,
     fullscreenButton: false,
@@ -198,8 +203,9 @@
     navigationHelpButton: false
   });
 
-  // Enable atmosphere & ground lighting
-  viewer.scene.globe.enableLighting = true;
+  // FORCE BRIGHT DAYLIGHT ALWAYS (Disable shadows/night darkness)
+  viewer.scene.globe.enableLighting = false;
+  viewer.scene.highDynamicRange = false;
 
   // Local Player State
   const playerState = {
@@ -209,21 +215,21 @@
     hp: 100
   };
 
-  // Local 3D Player Marker
+  // Local Player 3D Marker
   const playerEntity = viewer.entities.add({
     name: 'You',
     position: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 10),
-    point: { pixelSize: 16, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.WHITE, outlineWidth: 3 },
-    label: { text: 'Scout 1 (You)', font: '14px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -25) }
+    point: { pixelSize: 18, color: Cesium.Color.DEEPSKYBLUE, outlineColor: Cesium.Color.WHITE, outlineWidth: 3 },
+    label: { text: 'Scout 1 (You)', font: 'bold 14px sans-serif', fillColor: Cesium.Color.WHITE, pixelOffset: new Cesium.Cartesian2(0, -28) }
   });
 
-  // Initial Camera Lock
+  // Zoom camera directly to player
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 300),
+    destination: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat - 0.002, playerState.alt + 250),
     orientation: { pitch: Cesium.Math.toRadians(-35) }
   });
 
-  // --- 3. WEB AUDIO SFX ENGINE ---
+  // --- 3. WEB AUDIO SFX ---
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -241,7 +247,7 @@
       osc.start(); osc.stop(audioCtx.currentTime + 0.15);
     } else if (type === 'hit') {
       osc.type = 'square';
-      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(180, audioCtx.currentTime);
       osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.2);
       gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
       gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
@@ -253,27 +259,26 @@
   let activeMonster = null;
   function spawnMonster() {
     if (activeMonster) return;
-    const mLat = playerState.lat + (Math.random() - 0.5) * 0.001;
-    const mLon = playerState.lon + (Math.random() - 0.5) * 0.001;
+    const mLat = playerState.lat + (Math.random() - 0.5) * 0.0012;
+    const mLon = playerState.lon + (Math.random() - 0.5) * 0.0012;
 
     const monsterEntity = viewer.entities.add({
       name: 'Monster',
       position: Cesium.Cartesian3.fromDegrees(mLon, mLat, playerState.alt + 10),
-      point: { pixelSize: 22, color: Cesium.Color.RED, outlineColor: Cesium.Color.BLACK, outlineWidth: 2 },
-      label: { text: '⚠️ SHADOW MONSTER', font: 'bold 12px sans-serif', fillColor: Cesium.Color.RED, pixelOffset: new Cesium.Cartesian2(0, -25) }
+      point: { pixelSize: 22, color: Cesium.Color.RED, outlineColor: Cesium.Color.YELLOW, outlineWidth: 3 },
+      label: { text: '⚠️ MONSTER', font: 'bold 13px sans-serif', fillColor: Cesium.Color.RED, pixelOffset: new Cesium.Cartesian2(0, -28) }
     });
 
-    activeMonster = { entity: monsterEntity, lat: mLat, lon: mLon, hp: 100 };
+    activeMonster = { entity: monsterEntity, lat: mLat, lon: mLon };
   }
-  setInterval(spawnMonster, 8000);
+  setInterval(spawnMonster, 6000);
 
   function attackWithSword() {
     playSound('slash');
     if (activeMonster) {
-      // Check distance
       const dLat = Math.abs(playerState.lat - activeMonster.lat);
       const dLon = Math.abs(playerState.lon - activeMonster.lon);
-      if (dLat < 0.0015 && dLon < 0.0015) {
+      if (dLat < 0.0018 && dLon < 0.0018) {
         viewer.entities.remove(activeMonster.entity);
         activeMonster = null;
         playSound('hit');
@@ -281,14 +286,14 @@
     }
   }
 
-  // --- 5. MICRO:BIT WEB BLUETOOTH INTEGRATION ---
+  // --- 5. MICRO:BIT BLUETOOTH ---
   async function connectMicrobit() {
     const statusDiv = document.getElementById('bit-status');
     try {
       statusDiv.textContent = "Searching for micro:bit...";
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ namePrefix: 'BBC micro:bit' }],
-        optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8'] // Accelerometer Service
+        optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8']
       });
 
       const server = await device.gatt.connect();
@@ -302,19 +307,15 @@
         const y = view.getInt16(2, true);
         const z = view.getInt16(4, true);
 
-        // Motion magnitude threshold to trigger sword swing
         const accel = Math.sqrt(x*x + y*y + z*z);
-        if (accel > 2000) {
-          attackWithSword();
-        }
+        if (accel > 1800) attackWithSword();
       });
 
       statusDiv.style.color = "#2ecc71";
       statusDiv.textContent = "Micro:bit Sword: CONNECTED";
     } catch (err) {
-      console.warn("Bluetooth connection closed or unavailable:", err);
-      statusDiv.style.color = "#e74c3c";
-      statusDiv.textContent = "Bluetooth unavailable (Use [SPACE] to swing)";
+      statusDiv.style.color = "#f1c40f";
+      statusDiv.textContent = "Keyboard mode active [SPACE to attack]";
     }
   }
 
@@ -326,8 +327,8 @@
         peerEntities[id] = viewer.entities.add({
           name: p.name || 'Scout 2',
           position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt + 10),
-          point: { pixelSize: 16, color: Cesium.Color.YELLOW, outlineColor: Cesium.Color.BLACK, outlineWidth: 2 },
-          label: { text: 'Scout 2', font: '14px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -25) }
+          point: { pixelSize: 18, color: Cesium.Color.YELLOW, outlineColor: Cesium.Color.BLACK, outlineWidth: 2 },
+          label: { text: 'Scout 2', font: 'bold 14px sans-serif', fillColor: Cesium.Color.YELLOW, pixelOffset: new Cesium.Cartesian2(0, -28) }
         });
       } else {
         peerEntities[id].position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt + 10);
@@ -342,7 +343,7 @@
     }
   }
 
-  // --- 7. INPUTS & GAME LOOP ---
+  // --- 7. CONTROLS & MAIN LOOP ---
   const keys = { w: false, a: false, s: false, d: false };
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
@@ -369,17 +370,14 @@
     if (keys.d) { playerState.lon += step; moved = true; }
 
     if (moved) {
-      const newPos = Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 10);
-      playerEntity.position = newPos;
+      playerEntity.position = Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 10);
 
-      // Update Camera to follow player smoothly
       viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat - 0.001, playerState.alt + 200),
+        destination: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat - 0.002, playerState.alt + 250),
         orientation: { pitch: Cesium.Math.toRadians(-35) }
       });
     }
 
-    // Monster proximity check (Monster damages player)
     if (activeMonster) {
       const dLat = Math.abs(playerState.lat - activeMonster.lat);
       const dLon = Math.abs(playerState.lon - activeMonster.lon);
@@ -389,7 +387,6 @@
       }
     }
 
-    // Sync state to Firebase
     if (playerRef) {
       playerRef.set({
         lat: playerState.lat,
