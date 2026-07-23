@@ -2,48 +2,62 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PEAK 3D: Scout Expedition</title>
+  <title>PEAK: Google Earth Micro:bit Expedition</title>
+  
+  <!-- Cesium 3D Globe Library -->
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.108/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.108/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  
+  <!-- Firebase Database SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #1a2332;
-      color: #fff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      overflow: hidden;
-      width: 100vw;
-      height: 100vh;
-      user-select: none;
-    }
-    #canvas-container {
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #000; color: #fff; }
     
+    #cesiumContainer { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+    /* UI Panels */
     .hud-panel {
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(15, 23, 38, 0.85);
+      background: rgba(10, 16, 26, 0.85);
       padding: 16px 20px;
       border-radius: 14px;
       border: 1px solid rgba(255, 255, 255, 0.2);
       backdrop-filter: blur(10px);
-      pointer-events: none;
-      z-index: 10;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      z-index: 100;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      min-width: 240px;
     }
-    .hud-title { font-weight: 700; color: #4db8ff; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-    .bar-container { width: 220px; height: 14px; background: rgba(0,0,0,0.6); border-radius: 7px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.2); }
-    #stamina-bar { height: 100%; background: linear-gradient(90deg, #e74c3c, #f1c40f, #2ecc71); width: 100%; transition: width 0.1s linear; }
     
+    .hud-title { font-weight: 700; color: #4db8ff; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .bar-container { width: 100%; height: 12px; background: rgba(0,0,0,0.6); border-radius: 6px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.2); }
+    #hp-bar { height: 100%; background: #e74c3c; width: 100%; transition: width 0.2s ease; }
+
+    .btn-action {
+      background: #2ecc71;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-action:hover { background: #27ae60; }
+
     .status-badge {
       position: absolute;
       top: 20px;
       right: 20px;
-      background: rgba(15, 23, 38, 0.85);
+      background: rgba(10, 16, 26, 0.85);
       padding: 10px 20px;
       border-radius: 20px;
       border: 1px solid rgba(255, 255, 255, 0.2);
@@ -52,74 +66,78 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      z-index: 10;
+      z-index: 100;
     }
     .indicator { width: 10px; height: 10px; border-radius: 50%; background: #e74c3c; }
     .indicator.online { background: #2ecc71; box-shadow: 0 0 12px #2ecc71; }
 
+    /* YouTube Mood Player PIP */
+    #yt-mood-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 280px;
+      height: 158px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      z-index: 100;
+      background: #000;
+    }
+    #yt-mood-container iframe { width: 100%; height: 100%; border: none; }
+
     .controls-hint {
       position: absolute;
-      bottom: 24px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 38, 0.85);
-      padding: 12px 28px;
+      background: rgba(10, 16, 26, 0.85);
+      padding: 12px 24px;
       border-radius: 30px;
       font-size: 13px;
       color: #fff;
       border: 1px solid rgba(255, 255, 255, 0.2);
       backdrop-filter: blur(10px);
+      z-index: 100;
       pointer-events: none;
-      z-index: 10;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    }
-
-    .nametag {
-      position: absolute;
-      background: rgba(0, 0, 0, 0.8);
-      color: #fff;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: bold;
-      border: 1px solid #4db8ff;
-      pointer-events: none;
-      transform: translate(-50%, -100%);
-      white-space: nowrap;
     }
   </style>
-
-  <!-- Three.js 3D Engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
-<div id="canvas-container"></div>
-<div id="labels-container" style="position:absolute; inset:0; pointer-events:none; z-index:5;"></div>
+<div id="cesiumContainer"></div>
 
+<!-- HUD -->
 <div class="hud-panel">
-  <div class="hud-title">Scout Stamina</div>
-  <div class="bar-container">
-    <div id="stamina-bar"></div>
+  <div class="hud-title">Explorer Health</div>
+  <div class="bar-container"><div id="hp-bar"></div></div>
+  
+  <div class="hud-title" id="location-label">Location: Mount Everest</div>
+  
+  <div style="margin-top: 10px; display: flex; gap: 8px;">
+    <button class="btn-action" onclick="connectMicrobit()">⚔️ Connect Micro:bit</button>
   </div>
-  <div class="hud-title" id="biome-label">Biome: Foothills</div>
-  <div style="font-size: 18px; font-weight: 800; color: #f1c40f; margin-top: 4px;" id="alt-label">Altitude: 0m</div>
+  <div id="bit-status" style="font-size: 11px; color: #aaa; margin-top: 6px;">Micro:bit: Disconnected</div>
 </div>
 
+<!-- Multiplayer Status -->
 <div class="status-badge">
   <div id="net-status" class="indicator"></div>
-  <span id="net-text">Connecting to Server...</span>
+  <span id="net-text">Connecting...</span>
+</div>
+
+<!-- Picture-in-Picture Mood YouTube Video -->
+<div id="yt-mood-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1&mute=1&loop=1&playlist=jfKfPfyJRdk" allow="autoplay"></iframe>
 </div>
 
 <div class="controls-hint">
-  <b>[W/S]</b> Climb &nbsp;|&nbsp; <b>[A/D]</b> Traverse &nbsp;|&nbsp; <b>[SHIFT]</b> Sprint &nbsp;|&nbsp; <b>[SPACE]</b> Rope &nbsp;|&nbsp; <b>[R]</b> Unstuck/Respawn
+  <b>[WASD]</b> Walk Map &nbsp;|&nbsp; <b>[SWING MICRO:BIT] / [SPACE]</b> Sword Slash
 </div>
 
 <script>
-  // --- 1. FIREBASE SETUP ---
+  // --- 1. FIREBASE MULTIPLAYER SETUP ---
   const firebaseConfig = {
     apiKey: "AIzaSyBT06UhmGbTP_8G4Sjr41G8b0H4dKVCjy8",
     authDomain: "emotion-dance-battle.firebaseapp.com",
@@ -130,289 +148,258 @@
     appId: "1:47052488466:web:2fac8b10617898aac3fdcb"
   };
 
-  let db = null;
-  let playerRef = null;
-  let playersRef = null;
-
-  const myName = "Scout_" + Math.floor(Math.random()*899+100);
   const playerId = 'scout_' + Math.floor(Math.random() * 100000);
-  let peerPlayers = {};
-  let peerMeshes = {};
-  let peerLabels = {};
+  let db, playerRef, playersRef;
+  let peerPlayers = {}, peerEntities = {};
 
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    playersRef = db.ref('peak_3d_expedition/players');
-    playerRef = db.ref(`peak_3d_expedition/players/${playerId}`);
-
+    playersRef = db.ref('earth_expedition/players');
+    playerRef = db.ref(`earth_expedition/players/${playerId}`);
     playerRef.onDisconnect().remove();
 
     playersRef.on('value', (snapshot) => {
       const data = snapshot.val() || {};
       peerPlayers = {};
       let count = 0;
-      
       for (let id in data) {
         if (id !== playerId) {
           peerPlayers[id] = data[id];
           count++;
         }
       }
-
-      const indicator = document.getElementById('net-status');
-      const text = document.getElementById('net-text');
-      if (count > 0) {
-        indicator.classList.add('online');
-        text.textContent = `Co-Op Expedition (${count + 1} Scouts Online)`;
-      } else {
-        indicator.classList.remove('online');
-        text.textContent = `Solo Expedition (Waiting for Scout 2...)`;
-      }
-      
-      syncPeer3DModels();
+      document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
+      document.getElementById('net-text').textContent = count > 0 ? `Co-Op Linked (${count + 1} Explorers)` : `Waiting for Player 2...`;
+      syncPeerEntities();
     });
-  } catch(e) {
-    console.error("Firebase error: ", e);
-  }
+  } catch(e) { console.error("Firebase fail:", e); }
 
-  // --- 2. THREE.JS SCENE SETUP ---
-  const container = document.getElementById('canvas-container');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a2332);
+  // --- 2. GOOGLE EARTH / CESIUM 3D GLOBE INITIALIZATION ---
+  // Preset real-world climbing destinations
+  const LOCATIONS = [
+    { name: "Mount Everest", lat: 27.9881, lon: 86.9250, alt: 8848 },
+    { name: "Grand Canyon", lat: 36.1069, lon: -112.1129, alt: 2200 },
+    { name: "Mount Fuji", lat: 35.3606, lon: 138.7274, alt: 3776 },
+    { name: "Yosemite El Capitan", lat: 37.7341, lon: -119.6375, alt: 2307 }
+  ];
+  const startLoc = LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)];
+  document.getElementById('location-label').textContent = `Location: ${startLoc.name}`;
 
-  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  container.appendChild(renderer.domElement);
+  Cesium.Ion.defaultAccessToken = ''; // Public default terrain
+  const viewer = new Cesium.Viewer('cesiumContainer', {
+    terrainProvider: Cesium.createWorldTerrain(),
+    animation: false,
+    timeline: false,
+    fullscreenButton: false,
+    geocoder: false,
+    homeButton: false,
+    sceneModePicker: false,
+    navigationHelpButton: false
+  });
 
-  // BRIGHT LIGHTING
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
-  scene.add(ambientLight);
+  // Enable atmosphere & ground lighting
+  viewer.scene.globe.enableLighting = true;
 
-  const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight1.position.set(50, 100, 50);
-  scene.add(dirLight1);
-
-  // --- 3. MOUNTAIN ENVIRONMENT ---
-  const mountainGroup = new THREE.Group();
-  scene.add(mountainGroup);
-
-  const mGeo = new THREE.CylinderGeometry(20, 70, 500, 32, 32);
-  const mMat = new THREE.MeshLambertMaterial({ color: 0x4a5568, flatShading: true });
-  const mountain = new THREE.Mesh(mGeo, mMat);
-  mountain.position.y = 200;
-  mountainGroup.add(mountain);
-
-  // Ledges
-  const ledgeGeo = new THREE.BoxGeometry(3, 0.8, 1.5);
-  const ledgeMat = new THREE.MeshLambertMaterial({ color: 0x2d3748 });
-
-  for (let y = -20; y < 450; y += 6 + Math.random() * 4) {
-    const angle = (Math.random() - 0.5) * 1.8;
-    const radius = 50 - (y * 0.05);
-    const x = Math.sin(angle) * radius;
-    const z = Math.cos(angle) * radius;
-
-    const ledge = new THREE.Mesh(ledgeGeo, ledgeMat);
-    ledge.position.set(x, y, z);
-    ledge.lookAt(0, y, 0);
-    mountainGroup.add(ledge);
-  }
-
-  // --- 4. 3D AVATAR ---
-  function createScoutModel(colorHex) {
-    const group = new THREE.Group();
-
-    const torso = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 1.8, 0.9),
-      new THREE.MeshLambertMaterial({ color: colorHex })
-    );
-    torso.position.y = 1;
-    group.add(torso);
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 12, 12),
-      new THREE.MeshLambertMaterial({ color: 0xffccaa })
-    );
-    head.position.y = 2.2;
-    group.add(head);
-
-    const pack = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 1.3, 0.7),
-      new THREE.MeshLambertMaterial({ color: 0x222222 })
-    );
-    pack.position.set(0, 1.1, -0.6);
-    group.add(pack);
-
-    return group;
-  }
-
-  const playerColor = Math.floor(Math.random() * 0xffffff);
-  const myAvatar = createScoutModel(playerColor);
-  scene.add(myAvatar);
-
-  // Local State (Safe Default)
-  const player = {
-    angle: 0,
-    y: 0,
-    radius: 55, // Keeping camera & player slightly outside mountain surface
-    stamina: 100,
-    maxStamina: 100,
-    ropePlaced: false
+  // Local Player State
+  const playerState = {
+    lat: startLoc.lat,
+    lon: startLoc.lon,
+    alt: startLoc.alt,
+    hp: 100
   };
 
-  // --- 5. MULTIPLAYER SYNC ---
-  function syncPeer3DModels() {
-    const labelsDiv = document.getElementById('labels-container');
-
-    for (let id in peerPlayers) {
-      const data = peerPlayers[id];
-
-      if (!peerMeshes[id]) {
-        const pModel = createScoutModel(data.color || 0xe74c3c);
-        scene.add(pModel);
-        peerMeshes[id] = pModel;
-
-        const tag = document.createElement('div');
-        tag.className = 'nametag';
-        tag.textContent = data.name || "Scout";
-        labelsDiv.appendChild(tag);
-        peerLabels[id] = tag;
-      }
-
-      peerMeshes[id].position.set(data.x, data.y, data.z);
-      peerMeshes[id].rotation.y = data.rotY || 0;
-    }
-
-    for (let id in peerMeshes) {
-      if (!peerPlayers[id]) {
-        scene.remove(peerMeshes[id]);
-        delete peerMeshes[id];
-
-        if (peerLabels[id]) {
-          peerLabels[id].remove();
-          delete peerLabels[id];
-        }
-      }
-    }
-  }
-
-  function updateNametagPositions() {
-    const tempV = new THREE.Vector3();
-    for (let id in peerMeshes) {
-      if (peerLabels[id]) {
-        peerMeshes[id].getWorldPosition(tempV);
-        tempV.y += 3.0;
-        tempV.project(camera);
-
-        const x = (tempV.x *  .5 + .5) * window.innerWidth;
-        const y = (tempV.y * -.5 + .5) * window.innerHeight;
-
-        peerLabels[id].style.left = `${x}px`;
-        peerLabels[id].style.top = `${y}px`;
-        peerLabels[id].style.display = tempV.z < 1 ? 'block' : 'none';
-      }
-    }
-  }
-
-  // --- 6. INPUTS & UNSTUCK [R] ---
-  const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
-  window.addEventListener('keydown', e => {
-    handleKey(e, true);
-    // Press R to instantly respawn at base camp if stuck
-    if (e.key.toLowerCase() === 'r') {
-      player.y = 0;
-      player.angle = 0;
-      player.stamina = 100;
-    }
+  // Local 3D Player Marker
+  const playerEntity = viewer.entities.add({
+    name: 'You',
+    position: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 10),
+    point: { pixelSize: 16, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.WHITE, outlineWidth: 3 },
+    label: { text: 'Scout 1 (You)', font: '14px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -25) }
   });
-  window.addEventListener('keyup', e => handleKey(e, false));
 
-  function handleKey(e, isDown) {
-    const k = e.key.toLowerCase();
-    if (k === 'w') keys.w = isDown;
-    if (k === 's') keys.s = isDown;
-    if (k === 'a') keys.a = isDown;
-    if (k === 'd') keys.d = isDown;
-    if (e.key === 'Shift') keys.shift = isDown;
-    if (e.key === ' ') keys.space = isDown;
+  // Initial Camera Lock
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 300),
+    orientation: { pitch: Cesium.Math.toRadians(-35) }
+  });
+
+  // --- 3. WEB AUDIO SFX ENGINE ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'slash') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    } else if (type === 'hit') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    }
   }
 
-  // --- 7. ANIMATION LOOP ---
-  let clock = new THREE.Clock();
+  // --- 4. MONSTER SYSTEM ---
+  let activeMonster = null;
+  function spawnMonster() {
+    if (activeMonster) return;
+    const mLat = playerState.lat + (Math.random() - 0.5) * 0.001;
+    const mLon = playerState.lon + (Math.random() - 0.5) * 0.001;
 
-  function animate() {
-    requestAnimationFrame(animate);
-    const delta = clock.getDelta();
+    const monsterEntity = viewer.entities.add({
+      name: 'Monster',
+      position: Cesium.Cartesian3.fromDegrees(mLon, mLat, playerState.alt + 10),
+      point: { pixelSize: 22, color: Cesium.Color.RED, outlineColor: Cesium.Color.BLACK, outlineWidth: 2 },
+      label: { text: '⚠️ SHADOW MONSTER', font: 'bold 12px sans-serif', fillColor: Cesium.Color.RED, pixelOffset: new Cesium.Cartesian2(0, -25) }
+    });
 
-    const speedY = keys.shift ? 16 : 8;
-    const speedX = keys.shift ? 0.4 : 0.2;
-    let moving = false;
+    activeMonster = { entity: monsterEntity, lat: mLat, lon: mLon, hp: 100 };
+  }
+  setInterval(spawnMonster, 8000);
 
-    if (player.stamina > 0) {
-      if (keys.w) { player.y += speedY * delta; moving = true; }
-      if (keys.s) { player.y = Math.max(0, player.y - speedY * delta); moving = true; }
-      if (keys.a) { player.angle -= speedX * delta; moving = true; }
-      if (keys.d) { player.angle += speedX * delta; moving = true; }
-
-      if (moving) {
-        player.stamina = Math.max(0, player.stamina - (keys.shift ? 20 : 8) * delta);
-      } else {
-        player.stamina = Math.min(player.maxStamina, player.stamina + 30 * delta);
+  function attackWithSword() {
+    playSound('slash');
+    if (activeMonster) {
+      // Check distance
+      const dLat = Math.abs(playerState.lat - activeMonster.lat);
+      const dLon = Math.abs(playerState.lon - activeMonster.lon);
+      if (dLat < 0.0015 && dLon < 0.0015) {
+        viewer.entities.remove(activeMonster.entity);
+        activeMonster = null;
+        playSound('hit');
       }
-    } else {
-      player.y = Math.max(0, player.y - 20 * delta);
-      player.stamina = Math.min(player.maxStamina, player.stamina + 15 * delta);
+    }
+  }
+
+  // --- 5. MICRO:BIT WEB BLUETOOTH INTEGRATION ---
+  async function connectMicrobit() {
+    const statusDiv = document.getElementById('bit-status');
+    try {
+      statusDiv.textContent = "Searching for micro:bit...";
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'BBC micro:bit' }],
+        optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8'] // Accelerometer Service
+      });
+
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('e95d0753-251d-470a-a062-fa1922dfa9a8');
+      const char = await service.getCharacteristic('e95dca4b-251d-470a-a062-fa1922dfa9a8');
+
+      await char.startNotifications();
+      char.addEventListener('characteristicvaluechanged', (e) => {
+        const view = e.target.value;
+        const x = view.getInt16(0, true);
+        const y = view.getInt16(2, true);
+        const z = view.getInt16(4, true);
+
+        // Motion magnitude threshold to trigger sword swing
+        const accel = Math.sqrt(x*x + y*y + z*z);
+        if (accel > 2000) {
+          attackWithSword();
+        }
+      });
+
+      statusDiv.style.color = "#2ecc71";
+      statusDiv.textContent = "Micro:bit Sword: CONNECTED";
+    } catch (err) {
+      console.warn("Bluetooth connection closed or unavailable:", err);
+      statusDiv.style.color = "#e74c3c";
+      statusDiv.textContent = "Bluetooth unavailable (Use [SPACE] to swing)";
+    }
+  }
+
+  // --- 6. MULTIPLAYER PEER SYNC ---
+  function syncPeerEntities() {
+    for (let id in peerPlayers) {
+      const p = peerPlayers[id];
+      if (!peerEntities[id]) {
+        peerEntities[id] = viewer.entities.add({
+          name: p.name || 'Scout 2',
+          position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt + 10),
+          point: { pixelSize: 16, color: Cesium.Color.YELLOW, outlineColor: Cesium.Color.BLACK, outlineWidth: 2 },
+          label: { text: 'Scout 2', font: '14px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -25) }
+        });
+      } else {
+        peerEntities[id].position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt + 10);
+      }
     }
 
-    // Safe Radius Calculation
-    player.radius = Math.max(18, 52 - (player.y * 0.05));
+    for (let id in peerEntities) {
+      if (!peerPlayers[id]) {
+        viewer.entities.remove(peerEntities[id]);
+        delete peerEntities[id];
+      }
+    }
+  }
 
-    const posX = Math.sin(player.angle) * player.radius;
-    const posZ = Math.cos(player.angle) * player.radius;
+  // --- 7. INPUTS & GAME LOOP ---
+  const keys = { w: false, a: false, s: false, d: false };
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.w = true;
+    if (k === 's') keys.s = true;
+    if (k === 'a') keys.a = true;
+    if (k === 'd') keys.d = true;
+    if (e.key === ' ') attackWithSword();
+  });
+  window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w') keys.w = false;
+    if (k === 's') keys.s = false;
+    if (k === 'a') keys.a = false;
+    if (k === 'd') keys.d = false;
+  });
 
-    myAvatar.position.set(posX, player.y, posZ);
-    myAvatar.rotation.y = player.angle;
+  const step = 0.00015;
+  setInterval(() => {
+    let moved = false;
+    if (keys.w) { playerState.lat += step; moved = true; }
+    if (keys.s) { playerState.lat -= step; moved = true; }
+    if (keys.a) { playerState.lon -= step; moved = true; }
+    if (keys.d) { playerState.lon += step; moved = true; }
 
-    // Camera offset guarantee (camera stays outside mountain)
-    const camRadius = player.radius + 22;
-    camera.position.set(
-      Math.sin(player.angle) * camRadius,
-      player.y + 6,
-      Math.cos(player.angle) * camRadius
-    );
-    camera.lookAt(posX, player.y + 2, posZ);
+    if (moved) {
+      const newPos = Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt + 10);
+      playerEntity.position = newPos;
 
-    if (playerRef) {
-      playerRef.set({
-        name: myName,
-        x: posX,
-        y: player.y,
-        z: posZ,
-        rotY: player.angle,
-        color: playerColor,
-        stamina: player.stamina,
-        updated: Date.now()
+      // Update Camera to follow player smoothly
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat - 0.001, playerState.alt + 200),
+        orientation: { pitch: Cesium.Math.toRadians(-35) }
       });
     }
 
-    updateNametagPositions();
+    // Monster proximity check (Monster damages player)
+    if (activeMonster) {
+      const dLat = Math.abs(playerState.lat - activeMonster.lat);
+      const dLon = Math.abs(playerState.lon - activeMonster.lon);
+      if (dLat < 0.0003 && dLon < 0.0003) {
+        playerState.hp = Math.max(0, playerState.hp - 0.5);
+        document.getElementById('hp-bar').style.width = playerState.hp + '%';
+      }
+    }
 
-    document.getElementById('stamina-bar').style.width = `${(player.stamina / player.maxStamina) * 100}%`;
-    const alt = Math.max(0, Math.floor(player.y * 8));
-    document.getElementById('alt-label').textContent = `Altitude: ${alt}m`;
-
-    renderer.render(scene, camera);
-  }
-
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  animate();
+    // Sync state to Firebase
+    if (playerRef) {
+      playerRef.set({
+        lat: playerState.lat,
+        lon: playerState.lon,
+        alt: playerState.alt,
+        hp: playerState.hp,
+        updated: Date.now()
+      });
+    }
+  }, 30);
 </script>
 </body>
 </html>
