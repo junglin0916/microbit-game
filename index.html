@@ -2,21 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PEAK: Satellite Expedition</title>
+  <title>PEAK: Google Street View Shopping Expedition</title>
   
-  <!-- Three.js 3D Engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  
-  <!-- Firebase SDKs -->
+  <!-- Firebase Database SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+  <!-- Google Maps JavaScript API -->
+  <script src="https://maps.googleapis.com/maps/api/js?v=weekly"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #fff; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #fff; }
     
-    #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    #street-view { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
+    /* HUD Header */
     .hud-panel {
       position: absolute;
       top: 20px;
@@ -27,26 +28,25 @@
       border: 1px solid rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(10px);
       z-index: 100;
-      min-width: 250px;
+      min-width: 260px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
     
     .hud-title { font-weight: 700; color: #38bdf8; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-    .bar-container { width: 100%; height: 12px; background: rgba(0,0,0,0.6); border-radius: 6px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.2); }
-    #hp-bar { height: 100%; background: #22c55e; width: 100%; transition: width 0.2s ease; }
 
-    .btn-action {
+    .location-btn {
       background: #0284c7;
       color: #fff;
       border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
       font-weight: bold;
       cursor: pointer;
-      font-size: 12px;
-      transition: background 0.2s;
+      margin-top: 4px;
+      margin-right: 4px;
     }
-    .btn-action:hover { background: #0369a1; }
+    .location-btn:hover { background: #0369a1; }
 
     .status-badge {
       position: absolute;
@@ -65,21 +65,6 @@
     }
     .indicator { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
     .indicator.online { background: #22c55e; box-shadow: 0 0 12px #22c55e; }
-
-    #yt-mood-container {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      width: 280px;
-      height: 158px;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-      z-index: 100;
-      background: #000;
-    }
-    #yt-mood-container iframe { width: 100%; height: 100%; border: none; }
 
     .controls-hint {
       position: absolute;
@@ -101,35 +86,31 @@
 </head>
 <body>
 
-<div id="canvas-container"></div>
+<div id="street-view"></div>
 
+<!-- HUD -->
 <div class="hud-panel">
   <div class="hud-title" id="player-id-tag">Player: Scout</div>
-  <div class="hud-title">Health</div>
-  <div class="bar-container"><div id="hp-bar"></div></div>
-  
-  <div style="margin-top: 8px;">
-    <button class="btn-action" onclick="connectMicrobit()">⚔️ Connect Micro:bit</button>
+  <div class="hud-title" style="margin-top: 10px;">Shopping Districts</div>
+  <div>
+    <button class="location-btn" onclick="teleportTo(40.7580, -73.9855)">🛍️ Times Square NYC</button>
+    <button class="location-btn" onclick="teleportTo(35.6595, 139.7004)">🗼 Shibuya Tokyo</button>
+    <button class="location-btn" onclick="teleportTo(48.8606, 2.3376)">🎨 Paris Louvre</button>
   </div>
-  <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 6px;">Micro:bit: Optional (WASD + Space ready)</div>
 </div>
 
+<!-- Connection Status -->
 <div class="status-badge">
   <div id="net-status" class="indicator"></div>
-  <span id="net-text">Connecting...</span>
-</div>
-
-<!-- Working YouTube Ambient Player -->
-<div id="yt-mood-container">
-  <iframe src="https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1&mute=1&controls=1" allow="autoplay"></iframe>
+  <span id="net-text">Connecting to server...</span>
 </div>
 
 <div class="controls-hint">
-  <b>[WASD]</b> Walk Map &nbsp;|&nbsp; <b>[SPACE]</b> Sword Slash &nbsp;|&nbsp; <b>[SWING MICRO:BIT]</b> Motion Slash
+  <b>[CLICK & DRAG]</b> Look Around &nbsp;|&nbsp; <b>[ARROWS / CLICK ROADS]</b> Walk Street Together
 </div>
 
 <script>
-  // --- FIREBASE SETUP ---
+  // --- 1. FIREBASE SETUP ---
   const firebaseConfig = {
     apiKey: "AIzaSyBT06UhmGbTP_8G4Sjr41G8b0H4dKVCjy8",
     authDomain: "emotion-dance-battle.firebaseapp.com",
@@ -146,228 +127,109 @@
 
   const playerId = 'scout_' + Math.floor(Math.random() * 100000);
   let db, playerRef, playersRef;
-  let peerPlayers = {}, peerMeshes = {};
+  let isUpdatingFromNetwork = false;
 
-  try {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.database();
-    playersRef = db.ref('satellite_expedition/players');
-    playerRef = db.ref(`satellite_expedition/players/${playerId}`);
-    playerRef.onDisconnect().remove();
+  // Initial Location: Times Square, New York
+  let currentLat = 40.7580;
+  let currentLng = -73.9855;
+  let currentPov = { heading: 0, pitch: 0 };
 
-    playersRef.on('value', (snapshot) => {
-      const data = snapshot.val() || {};
-      peerPlayers = {};
-      let count = 0;
-      for (let id in data) {
-        if (id !== playerId) {
-          peerPlayers[id] = data[id];
-          count++;
-        }
+  // --- 2. INITIALIZE GOOGLE STREET VIEW ---
+  let panorama;
+
+  function initStreetView() {
+    panorama = new google.maps.StreetViewPanorama(
+      document.getElementById('street-view'),
+      {
+        position: { lat: currentLat, lng: currentLng },
+        pov: currentPov,
+        zoom: 1,
+        addressControl: true,
+        showRoadLabels: true,
+        motionTracking: false,
+        motionTrackingControl: false
       }
-      document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
-      document.getElementById('net-text').textContent = count > 0 ? `Co-Op Linked (${count + 1} Explorers)` : `Waiting for Player 2...`;
-      syncPeerModels();
+    );
+
+    // Sync Movement (When user steps down the street)
+    panorama.addListener('position_changed', () => {
+      if (isUpdatingFromNetwork) return;
+      const pos = panorama.getPosition();
+      currentLat = pos.lat();
+      currentLng = pos.lng();
+      pushToFirebase();
     });
-  } catch(e) { console.error("Firebase fail:", e); }
 
-  // --- THREE.JS WITH REAL SATELLITE TEXTURE ---
-  const container = document.getElementById('canvas-container');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x38bdf8);
-
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  container.appendChild(renderer.domElement);
-
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
-  scene.add(ambientLight);
-
-  // Load Real Satellite World Tile onto Ground
-  const textureLoader = new THREE.TextureLoader();
-  const satTexture = textureLoader.load('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6604/13682'); // High-Res Satellite View
-  satTexture.wrapS = THREE.RepeatWrapping;
-  satTexture.wrapT = THREE.RepeatWrapping;
-  satTexture.repeat.set(2, 2);
-
-  const groundGeo = new THREE.PlaneGeometry(400, 400);
-  const groundMat = new THREE.MeshLambertMaterial({ map: satTexture });
-  const ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
-
-  function createScoutModel(colorHex) {
-    const group = new THREE.Group();
-
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 2.0, 1.0),
-      new THREE.MeshLambertMaterial({ color: colorHex })
-    );
-    body.position.y = 1.0;
-    group.add(body);
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.6, 12, 12),
-      new THREE.MeshLambertMaterial({ color: 0xfde047 })
-    );
-    head.position.y = 2.4;
-    group.add(head);
-
-    return group;
+    // Sync Camera Rotation (When user turns camera)
+    panorama.addListener('pov_changed', () => {
+      if (isUpdatingFromNetwork) return;
+      currentPov = panorama.getPov();
+      pushToFirebase();
+    });
   }
 
-  const myAvatar = createScoutModel(0x0284c7);
-  scene.add(myAvatar);
+  window.onload = () => {
+    initStreetView();
+    initFirebase();
+  };
 
-  const playerState = { x: 0, z: 0, hp: 100 };
-
-  // --- AUDIO SFX ---
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  function playSound(type) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    if (type === 'slash') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-      osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-    }
-  }
-
-  // --- MONSTERS ---
-  let activeMonster = null;
-  function spawnMonster() {
-    if (activeMonster) return;
-    const mX = playerState.x + (Math.random() - 0.5) * 30;
-    const mZ = playerState.z + (Math.random() - 0.5) * 30;
-
-    const mMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2, 8, 8),
-      new THREE.MeshLambertMaterial({ color: 0xef4444 })
-    );
-    mMesh.position.set(mX, 1.2, mZ);
-    scene.add(mMesh);
-
-    activeMonster = { mesh: mMesh, x: mX, z: mZ };
-  }
-  setInterval(spawnMonster, 5000);
-
-  function attackWithSword() {
-    playSound('slash');
-    if (activeMonster) {
-      const dist = Math.hypot(playerState.x - activeMonster.x, playerState.z - activeMonster.z);
-      if (dist < 6) {
-        scene.remove(activeMonster.mesh);
-        activeMonster = null;
-      }
-    }
-  }
-
-  // --- MICRO:BIT BLUETOOTH ---
-  async function connectMicrobit() {
-    const statusDiv = document.getElementById('bit-status');
+  // --- 3. FIREBASE MULTIPLAYER SYNC ---
+  function initFirebase() {
     try {
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ namePrefix: 'BBC micro:bit' }],
-        optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8']
-      });
-      const server = await device.gatt.connect();
-      const service = await server.getPrimaryService('e95d0753-251d-470a-a062-fa1922dfa9a8');
-      const char = await service.getCharacteristic('e95dca4b-251d-470a-a062-fa1922dfa9a8');
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      playersRef = db.ref('street_shopping/players');
+      playerRef = db.ref(`street_shopping/players/${playerId}`);
+      playerRef.onDisconnect().remove();
 
-      await char.startNotifications();
-      char.addEventListener('characteristicvaluechanged', (e) => {
-        const view = e.target.value;
-        const x = view.getInt16(0, true);
-        const y = view.getInt16(2, true);
-        const z = view.getInt16(4, true);
-        if (Math.sqrt(x*x + y*y + z*z) > 1800) attackWithSword();
-      });
+      playersRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        let count = 0;
+        let peerData = null;
 
-      statusDiv.style.color = "#22c55e";
-      statusDiv.textContent = "Micro:bit Sword: CONNECTED";
-    } catch (err) {
-      statusDiv.style.color = "#f59e0b";
-      statusDiv.textContent = "Keyboard mode active [SPACE to attack]";
-    }
+        for (let id in data) {
+          if (id !== playerId) {
+            peerData = data[id];
+            count++;
+          }
+        }
+
+        document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
+        document.getElementById('net-text').textContent = count > 0 ? `Shopping with Partner (${count + 1} Online)` : `Waiting for Player 2...`;
+
+        // Follow partner's location if they move
+        if (peerData && peerData.lat && peerData.lng) {
+          isUpdatingFromNetwork = true;
+          panorama.setPosition({ lat: peerData.lat, lng: peerData.lng });
+          if (peerData.pov) {
+            panorama.setPov(peerData.pov);
+          }
+          setTimeout(() => { isUpdatingFromNetwork = false; }, 300);
+        }
+      });
+    } catch(e) { console.error("Firebase err:", e); }
   }
 
-  // --- MULTIPLAYER ---
-  function syncPeerModels() {
-    for (let id in peerPlayers) {
-      const p = peerPlayers[id];
-      if (!peerMeshes[id]) {
-        const pModel = createScoutModel(0xeab308);
-        scene.add(pModel);
-        peerMeshes[id] = pModel;
-      }
-      peerMeshes[id].position.set(p.x, 0, p.z);
-    }
-    for (let id in peerMeshes) {
-      if (!peerPlayers[id]) {
-        scene.remove(peerMeshes[id]);
-        delete peerMeshes[id];
-      }
-    }
-  }
-
-  // --- MAIN LOOP ---
-  const keys = { w: false, a: false, s: false, d: false };
-  window.addEventListener('keydown', e => {
-    const k = e.key.toLowerCase();
-    if (k === 'w') keys.w = true;
-    if (k === 's') keys.s = true;
-    if (k === 'a') keys.a = true;
-    if (k === 'd') keys.d = true;
-    if (e.key === ' ') attackWithSword();
-  });
-  window.addEventListener('keyup', e => {
-    const k = e.key.toLowerCase();
-    if (k === 'w') keys.w = false;
-    if (k === 's') keys.s = false;
-    if (k === 'a') keys.a = false;
-    if (k === 'd') keys.d = false;
-  });
-
-  const clock = new THREE.Clock();
-
-  function animate() {
-    requestAnimationFrame(animate);
-    const delta = clock.getDelta();
-    const moveSpeed = 14 * delta;
-
-    if (keys.w) playerState.z -= moveSpeed;
-    if (keys.s) playerState.z += moveSpeed;
-    if (keys.a) playerState.x -= moveSpeed;
-    if (keys.d) playerState.x += moveSpeed;
-
-    myAvatar.position.set(playerState.x, 0, playerState.z);
-
-    // FIXED CAMERA POSITION: Lower height & closer zoom prevents sky floating
-    camera.position.set(playerState.x, 6, playerState.z + 14);
-    camera.lookAt(playerState.x, 1.5, playerState.z);
-
+  function pushToFirebase() {
     if (playerRef) {
-      playerRef.set({ name: myName, x: playerState.x, z: playerState.z, hp: playerState.hp, updated: Date.now() });
+      playerRef.set({
+        name: myName,
+        lat: currentLat,
+        lng: currentLng,
+        pov: currentPov,
+        updated: Date.now()
+      });
     }
-
-    renderer.render(scene, camera);
   }
 
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  animate();
+  // Quick Teleport Buttons
+  function teleportTo(lat, lng) {
+    isUpdatingFromNetwork = false;
+    currentLat = lat;
+    currentLng = lng;
+    panorama.setPosition({ lat: lat, lng: lng });
+    pushToFirebase();
+  }
 </script>
 </body>
 </html>
