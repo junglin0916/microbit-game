@@ -2,30 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PEAK: Google Street View Shopping Expedition</title>
+  <title>PEAK: DDR 3D Shopping Mall</title>
   
-  <!-- Firebase Database SDKs -->
+  <!-- Three.js 3D Engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Firebase Realtime Database SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- Google Maps JavaScript API -->
-  <script src="https://maps.googleapis.com/maps/api/js?v=weekly"></script>
-
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #fff; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #fff; }
     
-    #street-view { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
-    /* HUD Header */
+    /* Clean HUD Overlay */
     .hud-panel {
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(15, 23, 42, 0.88);
+      background: rgba(15, 23, 42, 0.9);
       padding: 16px 20px;
       border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       backdrop-filter: blur(10px);
       z-index: 100;
       min-width: 260px;
@@ -34,28 +34,28 @@
     
     .hud-title { font-weight: 700; color: #38bdf8; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
 
-    .location-btn {
+    .btn-action {
       background: #0284c7;
       color: #fff;
       border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 11px;
+      padding: 8px 14px;
+      border-radius: 8px;
       font-weight: bold;
       cursor: pointer;
-      margin-top: 4px;
-      margin-right: 4px;
+      font-size: 12px;
+      margin-top: 8px;
+      transition: background 0.2s;
     }
-    .location-btn:hover { background: #0369a1; }
+    .btn-action:hover { background: #0369a1; }
 
     .status-badge {
       position: absolute;
       top: 20px;
       right: 20px;
-      background: rgba(15, 23, 42, 0.88);
+      background: rgba(15, 23, 42, 0.9);
       padding: 10px 20px;
       border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       backdrop-filter: blur(10px);
       font-size: 13px;
       display: flex;
@@ -71,12 +71,12 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.88);
+      background: rgba(15, 23, 42, 0.9);
       padding: 12px 24px;
       border-radius: 30px;
       font-size: 13px;
       color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       backdrop-filter: blur(10px);
       z-index: 100;
       pointer-events: none;
@@ -86,31 +86,29 @@
 </head>
 <body>
 
-<div id="street-view"></div>
+<div id="canvas-container"></div>
 
 <!-- HUD -->
 <div class="hud-panel">
-  <div class="hud-title" id="player-id-tag">Player: Scout</div>
-  <div class="hud-title" style="margin-top: 10px;">Shopping Districts</div>
+  <div class="hud-title" id="player-id-tag">You: Scout</div>
   <div>
-    <button class="location-btn" onclick="teleportTo(40.7580, -73.9855)">🛍️ Times Square NYC</button>
-    <button class="location-btn" onclick="teleportTo(35.6595, 139.7004)">🗼 Shibuya Tokyo</button>
-    <button class="location-btn" onclick="teleportTo(48.8606, 2.3376)">🎨 Paris Louvre</button>
+    <button class="btn-action" onclick="connectMicrobit()">📲 Connect Micro:bit Hand Motion</button>
   </div>
+  <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 6px;">DDR Pad / Keyboard Mode Active</div>
 </div>
 
-<!-- Connection Status -->
+<!-- Multiplayer Connection Badge -->
 <div class="status-badge">
   <div id="net-status" class="indicator"></div>
   <span id="net-text">Connecting to server...</span>
 </div>
 
 <div class="controls-hint">
-  <b>[CLICK & DRAG]</b> Look Around &nbsp;|&nbsp; <b>[ARROWS / CLICK ROADS]</b> Walk Street Together
+  <b>[DDR PAD / WASD / ARROWS]</b> Walk & Rotate &nbsp;|&nbsp; <b>[SWING MICRO:BIT]</b> Wave / Action
 </div>
 
 <script>
-  // --- 1. FIREBASE SETUP ---
+  // --- 1. FIREBASE MULTIPLAYER SETUP ---
   const firebaseConfig = {
     apiKey: "AIzaSyBT06UhmGbTP_8G4Sjr41G8b0H4dKVCjy8",
     authDomain: "emotion-dance-battle.firebaseapp.com",
@@ -127,109 +125,257 @@
 
   const playerId = 'scout_' + Math.floor(Math.random() * 100000);
   let db, playerRef, playersRef;
-  let isUpdatingFromNetwork = false;
+  let peerPlayers = {}, peerMeshes = {};
 
-  // Initial Location: Times Square, New York
-  let currentLat = 40.7580;
-  let currentLng = -73.9855;
-  let currentPov = { heading: 0, pitch: 0 };
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    playersRef = db.ref('ddr_mall_shopping/players');
+    playerRef = db.ref(`ddr_mall_shopping/players/${playerId}`);
+    playerRef.onDisconnect().remove();
 
-  // --- 2. INITIALIZE GOOGLE STREET VIEW ---
-  let panorama;
-
-  function initStreetView() {
-    panorama = new google.maps.StreetViewPanorama(
-      document.getElementById('street-view'),
-      {
-        position: { lat: currentLat, lng: currentLng },
-        pov: currentPov,
-        zoom: 1,
-        addressControl: true,
-        showRoadLabels: true,
-        motionTracking: false,
-        motionTrackingControl: false
+    playersRef.on('value', (snapshot) => {
+      const data = snapshot.val() || {};
+      peerPlayers = {};
+      let count = 0;
+      for (let id in data) {
+        if (id !== playerId) {
+          peerPlayers[id] = data[id];
+          count++;
+        }
       }
+      document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
+      document.getElementById('net-text').textContent = count > 0 ? `Co-Op Shopping (${count + 1} Explorers)` : `Waiting for Player 2...`;
+      syncPeerModels();
+    });
+  } catch(e) { console.error("Firebase fail:", e); }
+
+  // --- 2. THREE.JS 3D MALL ENVIRONMENT ---
+  const container = document.getElementById('canvas-container');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0f172a); // Clean Dark Sky / Mall Roof
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  container.appendChild(renderer.domElement);
+
+  // Soft Ambient & Directional Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+  scene.add(ambientLight);
+
+  const mainLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  mainLight.position.set(0, 40, 20);
+  scene.add(mainLight);
+
+  // Mall Floor Promenade (Tiled Pattern)
+  const floorGeo = new THREE.PlaneGeometry(60, 300);
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+
+  // Walkway Center Stripe
+  const stripeGeo = new THREE.PlaneGeometry(2, 300);
+  const stripeMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.rotation.x = -Math.PI / 2;
+  stripe.position.y = 0.01;
+  scene.add(stripe);
+
+  // Generate 3D Storefronts along the street
+  const storeColors = [0xf43f5e, 0x8b5cf6, 0x06b6d4, 0x10b981, 0xf59e0b, 0xec4899];
+  for (let z = -120; z <= 120; z += 25) {
+    // Left Stores
+    createStore(-18, z, storeColors[Math.abs(z) % storeColors.length], "LEFT");
+    // Right Stores
+    createStore(18, z, storeColors[(Math.abs(z) + 1) % storeColors.length], "RIGHT");
+  }
+
+  function createStore(x, z, colorHex, side) {
+    const storeGroup = new THREE.Group();
+
+    // Building Block
+    const bldgGeo = new THREE.BoxGeometry(14, 12, 20);
+    const bldgMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+    const bldg = new THREE.Mesh(bldgGeo, bldgMat);
+    bldg.position.set(x, 6, z);
+    storeGroup.add(bldg);
+
+    // Glowing Store Window Front
+    const winGeo = new THREE.PlaneGeometry(0.1, 8);
+    const winMat = new THREE.MeshBasicMaterial({ color: colorHex });
+    const win = new THREE.Mesh(winGeo, winMat);
+    win.position.set(side === "LEFT" ? x + 7.1 : x - 7.1, 5, z);
+    win.rotation.y = side === "LEFT" ? Math.PI / 2 : -Math.PI / 2;
+    storeGroup.add(win);
+
+    scene.add(storeGroup);
+  }
+
+  // --- 3. PLAYER AVATAR CREATION ---
+  function createScoutModel(colorHex) {
+    const group = new THREE.Group();
+
+    // Body
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.8, 0.8),
+      new THREE.MeshLambertMaterial({ color: colorHex })
     );
+    body.position.y = 0.9;
+    group.add(body);
 
-    // Sync Movement (When user steps down the street)
-    panorama.addListener('position_changed', () => {
-      if (isUpdatingFromNetwork) return;
-      const pos = panorama.getPosition();
-      currentLat = pos.lat();
-      currentLng = pos.lng();
-      pushToFirebase();
-    });
+    // Head
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 12, 12),
+      new THREE.MeshLambertMaterial({ color: 0xfde047 })
+    );
+    head.position.y = 2.1;
+    group.add(head);
 
-    // Sync Camera Rotation (When user turns camera)
-    panorama.addListener('pov_changed', () => {
-      if (isUpdatingFromNetwork) return;
-      currentPov = panorama.getPov();
-      pushToFirebase();
-    });
+    return group;
   }
 
-  window.onload = () => {
-    initStreetView();
-    initFirebase();
-  };
+  const myAvatar = createScoutModel(0x0284c7); // Player 1 Blue Avatar
+  scene.add(myAvatar);
 
-  // --- 3. FIREBASE MULTIPLAYER SYNC ---
-  function initFirebase() {
+  const playerState = { x: 0, z: 80, rotY: 0 };
+
+  // --- 4. MICRO:BIT MOTION CONTROL ---
+  async function connectMicrobit() {
+    const statusDiv = document.getElementById('bit-status');
     try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.database();
-      playersRef = db.ref('street_shopping/players');
-      playerRef = db.ref(`street_shopping/players/${playerId}`);
-      playerRef.onDisconnect().remove();
+      statusDiv.textContent = "Searching for Micro:bit...";
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'BBC micro:bit' }],
+        optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8']
+      });
 
-      playersRef.on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        let count = 0;
-        let peerData = null;
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('e95d0753-251d-470a-a062-fa1922dfa9a8');
+      const char = await service.getCharacteristic('e95dca4b-251d-470a-a062-fa1922dfa9a8');
 
-        for (let id in data) {
-          if (id !== playerId) {
-            peerData = data[id];
-            count++;
-          }
-        }
+      await char.startNotifications();
+      char.addEventListener('characteristicvaluechanged', (e) => {
+        const view = e.target.value;
+        const x = view.getInt16(0, true);
+        const y = view.getInt16(2, true);
+        const z = view.getInt16(4, true);
 
-        document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
-        document.getElementById('net-text').textContent = count > 0 ? `Shopping with Partner (${count + 1} Online)` : `Waiting for Player 2...`;
-
-        // Follow partner's location if they move
-        if (peerData && peerData.lat && peerData.lng) {
-          isUpdatingFromNetwork = true;
-          panorama.setPosition({ lat: peerData.lat, lng: peerData.lng });
-          if (peerData.pov) {
-            panorama.setPov(peerData.pov);
-          }
-          setTimeout(() => { isUpdatingFromNetwork = false; }, 300);
+        // Shake detection causes player wave motion
+        if (Math.abs(x) > 1600 || Math.abs(y) > 1600) {
+          myAvatar.position.y = 1.0;
+          setTimeout(() => { myAvatar.position.y = 0; }, 200);
         }
       });
-    } catch(e) { console.error("Firebase err:", e); }
-  }
 
-  function pushToFirebase() {
-    if (playerRef) {
-      playerRef.set({
-        name: myName,
-        lat: currentLat,
-        lng: currentLng,
-        pov: currentPov,
-        updated: Date.now()
-      });
+      statusDiv.style.color = "#22c55e";
+      statusDiv.textContent = "Micro:bit Motion Connected!";
+    } catch (err) {
+      statusDiv.style.color = "#f59e0b";
+      statusDiv.textContent = "DDR Pad / Keyboard Ready";
     }
   }
 
-  // Quick Teleport Buttons
-  function teleportTo(lat, lng) {
-    isUpdatingFromNetwork = false;
-    currentLat = lat;
-    currentLng = lng;
-    panorama.setPosition({ lat: lat, lng: lng });
-    pushToFirebase();
+  // --- 5. MULTIPLAYER PEER SYNC ---
+  function syncPeerModels() {
+    for (let id in peerPlayers) {
+      const p = peerPlayers[id];
+      if (!peerMeshes[id]) {
+        const pModel = createScoutModel(0xeab308); // Player 2 Yellow Avatar
+        scene.add(pModel);
+        peerMeshes[id] = pModel;
+      }
+      peerMeshes[id].position.set(p.x, p.y || 0, p.z);
+      peerMeshes[id].rotation.y = p.rotY || 0;
+    }
+
+    for (let id in peerMeshes) {
+      if (!peerPlayers[id]) {
+        scene.remove(peerMeshes[id]);
+        delete peerMeshes[id];
+      }
+    }
   }
+
+  // --- 6. INPUTS & GAME LOOP (DDR PAD SUPPORT) ---
+  const keys = { w: false, a: false, s: false, d: false };
+
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
+    if (k === 's' || e.key === 'ArrowDown') keys.s = true;
+    if (k === 'a' || e.key === 'ArrowLeft') keys.a = true;
+    if (k === 'd' || e.key === 'ArrowRight') keys.d = true;
+  });
+
+  window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.key === 'ArrowUp') keys.w = false;
+    if (k === 's' || e.key === 'ArrowDown') keys.s = false;
+    if (k === 'a' || e.key === 'ArrowLeft') keys.a = false;
+    if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
+  });
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    const moveSpeed = 12 * delta;
+    const turnSpeed = 2.5 * delta;
+
+    // Movement logic calibrated for DDR step mats
+    if (keys.a) playerState.rotY += turnSpeed;
+    if (keys.d) playerState.rotY -= turnSpeed;
+
+    if (keys.w) {
+      playerState.x -= Math.sin(playerState.rotY) * moveSpeed;
+      playerState.z -= Math.cos(playerState.rotY) * moveSpeed;
+    }
+    if (keys.s) {
+      playerState.x += Math.sin(playerState.rotY) * moveSpeed;
+      playerState.z += Math.cos(playerState.rotY) * moveSpeed;
+    }
+
+    // Keep player inside mall bounds
+    playerState.x = Math.max(-12, Math.min(12, playerState.x));
+    playerState.z = Math.max(-130, Math.min(130, playerState.z));
+
+    myAvatar.position.x = playerState.x;
+    myAvatar.position.z = playerState.z;
+    myAvatar.rotation.y = playerState.rotY;
+
+    // Follow Camera positioned over player shoulder
+    const camDist = 12;
+    const camHeight = 6;
+    camera.position.x = playerState.x + Math.sin(playerState.rotY) * camDist;
+    camera.position.z = playerState.z + Math.cos(playerState.rotY) * camDist;
+    camera.position.y = camHeight;
+    camera.lookAt(playerState.x, 2, playerState.z);
+
+    // Firebase position sync
+    if (playerRef) {
+      playerRef.set({
+        name: myName,
+        x: playerState.x,
+        y: myAvatar.position.y,
+        z: playerState.z,
+        rotY: playerState.rotY,
+        updated: Date.now()
+      });
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  animate();
 </script>
 </body>
 </html>
