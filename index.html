@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PEAK: Scout Expedition & Combat</title>
+  <title>PEAK: Satellite Expedition</title>
   
   <!-- Three.js 3D Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   
-  <!-- Firebase Database SDKs -->
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -17,7 +17,6 @@
     
     #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
-    /* HUD */
     .hud-panel {
       position: absolute;
       top: 20px;
@@ -34,7 +33,7 @@
     
     .hud-title { font-weight: 700; color: #38bdf8; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
     .bar-container { width: 100%; height: 12px; background: rgba(0,0,0,0.6); border-radius: 6px; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.2); }
-    #hp-bar { height: 100%; background: #22c55e; width: 100%; transition: width 0.2s ease, background 0.2s; }
+    #hp-bar { height: 100%; background: #22c55e; width: 100%; transition: width 0.2s ease; }
 
     .btn-action {
       background: #0284c7;
@@ -67,7 +66,6 @@
     .indicator { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
     .indicator.online { background: #22c55e; box-shadow: 0 0 12px #22c55e; }
 
-    /* YouTube Picture-in-Picture Mood Player */
     #yt-mood-container {
       position: absolute;
       bottom: 20px;
@@ -105,9 +103,8 @@
 
 <div id="canvas-container"></div>
 
-<!-- HUD -->
 <div class="hud-panel">
-  <div class="hud-title" id="player-id-tag">Player: Scout #1</div>
+  <div class="hud-title" id="player-id-tag">Player: Scout</div>
   <div class="hud-title">Health</div>
   <div class="bar-container"><div id="hp-bar"></div></div>
   
@@ -117,26 +114,22 @@
   <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 6px;">Micro:bit: Optional (WASD + Space ready)</div>
 </div>
 
-<!-- Multiplayer Status Badge -->
 <div class="status-badge">
   <div id="net-status" class="indicator"></div>
-  <span id="net-text">Connecting to server...</span>
+  <span id="net-text">Connecting...</span>
 </div>
 
-<!-- Mood Stream YouTube Video -->
+<!-- Working YouTube Ambient Player -->
 <div id="yt-mood-container">
-  <iframe 
-    src="https://www.youtube.com/embed/5qap5aO4i9A?autoplay=1&mute=1&controls=1&enablejsapi=1" 
-    allow="autoplay; encrypted-media">
-  </iframe>
+  <iframe src="https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1&mute=1&controls=1" allow="autoplay"></iframe>
 </div>
 
 <div class="controls-hint">
-  <b>[WASD]</b> Walk Ground &nbsp;|&nbsp; <b>[SPACE]</b> Sword Slash &nbsp;|&nbsp; <b>[SWING MICRO:BIT]</b> Motion Slash
+  <b>[WASD]</b> Walk Map &nbsp;|&nbsp; <b>[SPACE]</b> Sword Slash &nbsp;|&nbsp; <b>[SWING MICRO:BIT]</b> Motion Slash
 </div>
 
 <script>
-  // --- 1. FIREBASE SETUP ---
+  // --- FIREBASE SETUP ---
   const firebaseConfig = {
     apiKey: "AIzaSyBT06UhmGbTP_8G4Sjr41G8b0H4dKVCjy8",
     authDomain: "emotion-dance-battle.firebaseapp.com",
@@ -158,8 +151,8 @@
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    playersRef = db.ref('earth_expedition_3d/players');
-    playerRef = db.ref(`earth_expedition_3d/players/${playerId}`);
+    playersRef = db.ref('satellite_expedition/players');
+    playerRef = db.ref(`satellite_expedition/players/${playerId}`);
     playerRef.onDisconnect().remove();
 
     playersRef.on('value', (snapshot) => {
@@ -173,76 +166,63 @@
         }
       }
       document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
-      document.getElementById('net-text').textContent = count > 0 ? `Co-Op Connected (${count + 1} Explorers)` : `Waiting for Player 2...`;
+      document.getElementById('net-text').textContent = count > 0 ? `Co-Op Linked (${count + 1} Explorers)` : `Waiting for Player 2...`;
       syncPeerModels();
     });
   } catch(e) { console.error("Firebase fail:", e); }
 
-  // --- 2. THREE.JS 3D WORLD SETUP ---
+  // --- THREE.JS WITH REAL SATELLITE TEXTURE ---
   const container = document.getElementById('canvas-container');
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x38bdf8); // Bright Blue Sky
+  scene.background = new THREE.Color(0x38bdf8);
 
-  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   container.appendChild(renderer.domElement);
 
-  // Sunlight & Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
   scene.add(ambientLight);
 
-  const sunLight = new THREE.DirectionalLight(0xfff7ed, 0.9);
-  sunLight.position.set(50, 100, 50);
-  scene.add(sunLight);
+  // Load Real Satellite World Tile onto Ground
+  const textureLoader = new THREE.TextureLoader();
+  const satTexture = textureLoader.load('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6604/13682'); // High-Res Satellite View
+  satTexture.wrapS = THREE.RepeatWrapping;
+  satTexture.wrapT = THREE.RepeatWrapping;
+  satTexture.repeat.set(2, 2);
 
-  // Bright Green Terrain Ground
-  const groundGeo = new THREE.PlaneGeometry(300, 300);
-  const groundMat = new THREE.MeshLambertMaterial({ color: 0x15803d });
+  const groundGeo = new THREE.PlaneGeometry(400, 400);
+  const groundMat = new THREE.MeshLambertMaterial({ map: satTexture });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
-  // Mountain Props
-  for (let i = 0; i < 12; i++) {
-    const mGeo = new THREE.ConeGeometry(8 + Math.random()*8, 20 + Math.random()*20, 5);
-    const mMat = new THREE.MeshLambertMaterial({ color: 0x475569 });
-    const mountain = new THREE.Mesh(mGeo, mMat);
-    mountain.position.set((Math.random() - 0.5) * 200, 10, (Math.random() - 0.5) * 200);
-    scene.add(mountain);
-  }
-
-  // Helper function to create Scout 3D Avatar
   function createScoutModel(colorHex) {
     const group = new THREE.Group();
 
-    // Body
     const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 1.8, 0.8),
+      new THREE.BoxGeometry(1.4, 2.0, 1.0),
       new THREE.MeshLambertMaterial({ color: colorHex })
     );
-    body.position.y = 0.9;
+    body.position.y = 1.0;
     group.add(body);
 
-    // Head
     const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, 12, 12),
+      new THREE.SphereGeometry(0.6, 12, 12),
       new THREE.MeshLambertMaterial({ color: 0xfde047 })
     );
-    head.position.y = 2.1;
+    head.position.y = 2.4;
     group.add(head);
 
     return group;
   }
 
-  // Create Local Player Avatar
-  const playerColor = 0x0284c7;
-  const myAvatar = createScoutModel(playerColor);
+  const myAvatar = createScoutModel(0x0284c7);
   scene.add(myAvatar);
 
-  const playerState = { x: 0, z: 0, rotY: 0, hp: 100 };
+  const playerState = { x: 0, z: 0, hp: 100 };
 
-  // --- 3. WEB AUDIO SOUND EFFECTS ---
+  // --- AUDIO SFX ---
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -258,17 +238,10 @@
       gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
       gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
       osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-    } else if (type === 'hit') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-      osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
     }
   }
 
-  // --- 4. MONSTER SYSTEM ---
+  // --- MONSTERS ---
   let activeMonster = null;
   function spawnMonster() {
     if (activeMonster) return;
@@ -293,21 +266,18 @@
       if (dist < 6) {
         scene.remove(activeMonster.mesh);
         activeMonster = null;
-        playSound('hit');
       }
     }
   }
 
-  // --- 5. MICRO:BIT WEB BLUETOOTH ---
+  // --- MICRO:BIT BLUETOOTH ---
   async function connectMicrobit() {
     const statusDiv = document.getElementById('bit-status');
     try {
-      statusDiv.textContent = "Searching for micro:bit...";
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ namePrefix: 'BBC micro:bit' }],
         optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8']
       });
-
       const server = await device.gatt.connect();
       const service = await server.getPrimaryService('e95d0753-251d-470a-a062-fa1922dfa9a8');
       const char = await service.getCharacteristic('e95dca4b-251d-470a-a062-fa1922dfa9a8');
@@ -318,9 +288,7 @@
         const x = view.getInt16(0, true);
         const y = view.getInt16(2, true);
         const z = view.getInt16(4, true);
-
-        const accel = Math.sqrt(x*x + y*y + z*z);
-        if (accel > 1800) attackWithSword();
+        if (Math.sqrt(x*x + y*y + z*z) > 1800) attackWithSword();
       });
 
       statusDiv.style.color = "#22c55e";
@@ -331,7 +299,7 @@
     }
   }
 
-  // --- 6. MULTIPLAYER PEER SYNC ---
+  // --- MULTIPLAYER ---
   function syncPeerModels() {
     for (let id in peerPlayers) {
       const p = peerPlayers[id];
@@ -341,9 +309,7 @@
         peerMeshes[id] = pModel;
       }
       peerMeshes[id].position.set(p.x, 0, p.z);
-      peerMeshes[id].rotation.y = p.rotY || 0;
     }
-
     for (let id in peerMeshes) {
       if (!peerPlayers[id]) {
         scene.remove(peerMeshes[id]);
@@ -352,7 +318,7 @@
     }
   }
 
-  // --- 7. INPUTS & MAIN GAME LOOP ---
+  // --- MAIN LOOP ---
   const keys = { w: false, a: false, s: false, d: false };
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
@@ -375,7 +341,7 @@
   function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
-    const moveSpeed = 12 * delta;
+    const moveSpeed = 14 * delta;
 
     if (keys.w) playerState.z -= moveSpeed;
     if (keys.s) playerState.z += moveSpeed;
@@ -384,31 +350,12 @@
 
     myAvatar.position.set(playerState.x, 0, playerState.z);
 
-    // Smooth Camera Follow
-    camera.position.set(playerState.x, 10, playerState.z + 18);
-    camera.lookAt(playerState.x, 2, playerState.z);
+    // FIXED CAMERA POSITION: Lower height & closer zoom prevents sky floating
+    camera.position.set(playerState.x, 6, playerState.z + 14);
+    camera.lookAt(playerState.x, 1.5, playerState.z);
 
-    // Monster hit detection
-    if (activeMonster) {
-      const dist = Math.hypot(playerState.x - activeMonster.x, playerState.z - activeMonster.z);
-      if (dist < 2) {
-        playerState.hp = Math.max(0, playerState.hp - 10 * delta);
-        const hpBar = document.getElementById('hp-bar');
-        hpBar.style.width = playerState.hp + '%';
-        if (playerState.hp < 30) hpBar.style.background = '#ef4444';
-      }
-    }
-
-    // Sync to Firebase
     if (playerRef) {
-      playerRef.set({
-        name: myName,
-        x: playerState.x,
-        z: playerState.z,
-        rotY: playerState.rotY,
-        hp: playerState.hp,
-        updated: Date.now()
-      });
+      playerRef.set({ name: myName, x: playerState.x, z: playerState.z, hp: playerState.hp, updated: Date.now() });
     }
 
     renderer.render(scene, camera);
