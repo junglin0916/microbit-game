@@ -2,13 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PEAK: YouTube Co-Op Star Rush</title>
+  <title>PEAK: YouTube Co-Op Workout Challenge</title>
   
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <style>
@@ -23,8 +21,7 @@
       background: #000;
     }
 
-    /* 1. YouTube Center Video Background */
-    #yt-bg {
+    #yt-bg-container {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -36,9 +33,14 @@
       pointer-events: none;
       z-index: 1;
       opacity: 0.85;
+      transition: opacity 0.3s ease, filter 0.3s ease;
     }
 
-    /* Game Canvas */
+    #yt-bg-container.halted {
+      opacity: 0.15;
+      filter: grayscale(100%) blur(4px);
+    }
+
     #canvas-overlay {
       position: absolute;
       top: 0;
@@ -48,7 +50,6 @@
       z-index: 2;
     }
 
-    /* HUD Header */
     .hud-panel {
       position: absolute;
       top: 20px;
@@ -71,7 +72,11 @@
     }
     .btn-action:hover { background: #0369a1; }
 
-    /* 3-Minute Timer Display */
+    .btn-secondary {
+      background: #475569; color: #fff; border: none; padding: 8px 14px;
+      border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-top: 6px;
+    }
+
     .timer-badge {
       position: absolute;
       top: 20px;
@@ -87,6 +92,24 @@
       color: #fde047;
       z-index: 10;
       box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+
+    #workout-warning {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(225, 29, 72, 0.95);
+      padding: 16px 36px;
+      border-radius: 30px;
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: 1px;
+      color: #fff;
+      z-index: 15;
+      display: none;
+      box-shadow: 0 0 40px rgba(225, 29, 72, 0.8);
+      text-align: center;
     }
 
     .status-badge {
@@ -107,8 +130,7 @@
     .indicator { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
     .indicator.online { background: #22c55e; box-shadow: 0 0 12px #22c55e; }
 
-    /* Name Modal & Winner Screen */
-    #name-modal, #game-over-modal {
+    #name-modal, #lobby-modal, #game-over-modal {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.88);
@@ -119,7 +141,7 @@
       backdrop-filter: blur(8px);
     }
 
-    #game-over-modal { display: none; }
+    #lobby-modal, #game-over-modal { display: none; }
 
     .modal-box {
       background: #0f172a;
@@ -157,21 +179,17 @@
 <body>
 
 <div id="game-stage">
-  <!-- YouTube Background -->
-  <iframe id="yt-bg" 
-    src="https://www.youtube.com/embed/tAwJE-1z6z0?autoplay=1&mute=1&controls=0&loop=1&playlist=tAwJE-1z6z0&enablejsapi=1" 
-    allow="autoplay" 
-    frameborder="0">
-  </iframe>
+  <div id="yt-bg-container">
+    <div id="yt-player"></div>
+  </div>
 
-  <!-- Game Canvas -->
   <canvas id="canvas-overlay"></canvas>
 </div>
 
-<!-- 3-Minute Timer -->
 <div class="timer-badge">⏱️ <span id="timer-val">03:00</span></div>
 
-<!-- Player HUD -->
+<div id="workout-warning">🛑 WORKOUT PAUSED!<br><span style="font-size:14px; font-weight: normal; color: #fde047;">⚠️ Points are decreasing! Keep stepping to score!</span></div>
+
 <div class="hud-panel">
   <div class="hud-title" id="player-tag">Player: Guest</div>
   <div class="hud-title" style="margin-top: 6px;">Score: <span id="score-val" style="color:#fde047">0</span></div>
@@ -186,20 +204,27 @@
 </div>
 
 <div class="controls-hint">
-  <b>[W]</b> Step Up &nbsp;|&nbsp; <b>[S]</b> Bounce Jump &nbsp;|&nbsp; <b>[A / D or Micro:bit Tilt]</b> Move Left / Right
+  <b>[A / D Pad]</b> Step Left/Right to Walk & Score &nbsp;|&nbsp; <b>[Micro:bit Swing]</b> Jump
 </div>
 
-<!-- Name Input Modal -->
 <div id="name-modal">
   <div class="modal-box">
-    <h2 style="color: #38bdf8;">🎮 Join Star Rush Arcade</h2>
-    <p style="font-size: 13px; color: #94a3b8; margin-top: 5px;">3-Minute Co-Op Challenge</p>
+    <h2 style="color: #38bdf8;">🎮 Workout Arcade</h2>
+    <p style="font-size: 13px; color: #94a3b8; margin-top: 5px;">3-Minute Step Challenge</p>
     <input type="text" id="player-name-input" placeholder="Enter Your Name / Student ID" maxlength="20">
-    <button class="btn-action" style="width: 100%; padding: 12px; font-size: 16px; margin-top:10px;" onclick="startGame()">Start Game & Music</button>
+    <button class="btn-action" style="width: 100%; padding: 12px; font-size: 16px; margin-top:10px;" onclick="connectAndGoToLobby()">Join Lobby</button>
   </div>
 </div>
 
-<!-- Game Over / Winner Modal -->
+<div id="lobby-modal">
+  <div class="modal-box">
+    <h2 style="color: #38bdf8;">⏳ Waiting Room</h2>
+    <p id="lobby-msg" style="font-size: 14px; color: #fde047; margin: 15px 0;">Looking for Player 2...</p>
+    
+    <button class="btn-action" style="width: 100%; padding: 12px; font-size: 16px;" onclick="forceStartSolo()">🏃 Play Solo Mode Now</button>
+  </div>
+</div>
+
 <div id="game-over-modal">
   <div class="modal-box">
     <h1 style="color: #fde047; font-size: 32px;">🏆 TIME'S UP!</h1>
@@ -209,16 +234,40 @@
   </div>
 </div>
 
+<script src="https://www.youtube.com/iframe_api"></script>
+
 <script>
   // --- PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ---
-  const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbytkAaHgQ1g_zXy625h_TGENTV6_OBUyw7GRiEXtH0tyNuf8k06R3a3u4RcahzVWi7B/exec";
+  const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwpwo5bwlWQKvYLZwkfPPfi7pz55Skjn6QdAYY99533w0bEkNfae4YNfZW80MBOvj5i/exec";
 
-  // --- NATIVE BROWSER AUDIO SYNTHESIZER (SYNTH MUSIC) ---
+  // --- YOUTUBE PLAYER CONTROL ---
+  let ytPlayer = null;
+  let isVideoPlaying = false;
+
+  function onYouTubeIframeAPIReady() {
+    ytPlayer = new YT.Player('yt-player', {
+      height: '100%',
+      width: '100%',
+      videoId: 'tAwJE-1z6z0',
+      playerVars: {
+        'autoplay': 1,
+        'controls': 0,
+        'mute': 1,
+        'loop': 1,
+        'playlist': 'tAwJE-1z6z0',
+        'enablejsapi': 1
+      },
+      events: {
+        'onReady': (event) => { event.target.playVideo(); isVideoPlaying = true; }
+      }
+    });
+  }
+
+  // --- AUDIO SYNTHESIZER ---
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   let musicInterval = null;
   let isMusicPlaying = false;
-
-  const melNotes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25]; // C Major Scale
+  const melNotes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
   let noteIdx = 0;
 
   function startSynthMusic() {
@@ -227,14 +276,15 @@
     isMusicPlaying = true;
 
     musicInterval = setInterval(() => {
+      if (lastStepTime && (Date.now() - lastStepTime > STEP_TIMEOUT)) return;
+
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.connect(gain);
       gain.connect(audioCtx.destination);
 
       osc.type = 'triangle';
-      const freq = melNotes[noteIdx % melNotes.length];
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(melNotes[noteIdx % melNotes.length], audioCtx.currentTime);
 
       gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
@@ -272,7 +322,7 @@
     osc.stop(audioCtx.currentTime + 0.25);
   }
 
-  // --- FIREBASE MULTIPLAYER SETUP ---
+  // --- FIREBASE MULTIPLAYER ---
   const firebaseConfig = {
     apiKey: "AIzaSyBT06UhmGbTP_8G4Sjr41G8b0H4dKVCjy8",
     authDomain: "emotion-dance-battle.firebaseapp.com",
@@ -283,10 +333,11 @@
     appId: "1:47052488466:web:2fac8b10617898aac3fdcb"
   };
 
-  let db, playerRef, playersRef;
+  let db, playerRef, playersRef, roomStateRef;
   let myPlayerSlot = 1;
   let myName = "";
   let peerPlayers = {};
+  let isGameStarted = false;
 
   const playerId = 'scout_' + Math.floor(Math.random() * 100000);
 
@@ -313,15 +364,19 @@
     reboundVelocity: 0
   };
 
-  // 3-Minute Timer Variables
-  let timeLeft = 180; // 3 minutes in seconds
+  // FORCED WORKOUT LOGIC
+  let lastStepTime = 0;
+  const STEP_TIMEOUT = 1200; // 1.2s inactivity threshold
+
+  // Timer
+  let timeLeft = 180;
   let timerInterval = null;
   let isGameOver = false;
 
   let stars = [];
 
   function spawnStar() {
-    if (isGameOver) return;
+    if (isGameOver || !isGameStarted) return;
     const isLeft = Math.random() < 0.5;
     const xPos = isLeft ? Math.random() * (canvas.width * 0.32) : canvas.width * 0.68 + Math.random() * (canvas.width * 0.32);
     stars.push({
@@ -333,18 +388,91 @@
   }
   setInterval(spawnStar, 1000);
 
-  // --- START GAME & TIMER ---
-  function startGame() {
+  function connectAndGoToLobby() {
     const input = document.getElementById('player-name-input').value.trim();
     if (!input) { alert("Please enter your name!"); return; }
     myName = input;
     document.getElementById('player-tag').textContent = `You: ${myName}`;
 
-    startSynthMusic();
     document.getElementById('name-modal').style.display = 'none';
+    document.getElementById('lobby-modal').style.display = 'flex';
 
     initFirebase();
+  }
+
+  function initFirebase() {
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      playersRef = db.ref('yt_star_expedition/players');
+      roomStateRef = db.ref('yt_star_expedition/room_state');
+
+      playersRef.once('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        const activeIds = Object.keys(data);
+
+        if (activeIds.length >= 2) {
+          alert("Room Full! Max 2 Players currently connected.");
+          window.location.reload();
+          return;
+        }
+
+        myPlayerSlot = activeIds.length === 0 ? 1 : 2;
+        myState.x = myPlayerSlot === 1 ? canvas.width * 0.4 : canvas.width * 0.6;
+
+        playerRef = db.ref(`yt_star_expedition/players/${playerId}`);
+        playerRef.onDisconnect().remove();
+
+        playerRef.set({
+          name: myName,
+          x: myState.x,
+          y: myState.targetY,
+          score: 0,
+          prizes: 0,
+          updated: Date.now()
+        });
+
+        // Listen to room status (auto-start when 2 players join)
+        playersRef.on('value', (snap) => {
+          const allData = snap.val() || {};
+          peerPlayers = {};
+          let count = 0;
+          for (let id in allData) {
+            if (id !== playerId) {
+              peerPlayers[id] = allData[id];
+              count++;
+            }
+          }
+          
+          document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
+          document.getElementById('net-text').textContent = count > 0 ? `2 Players Online` : `Waiting for Player 2...`;
+
+          if (count > 0 && !isGameStarted) {
+            document.getElementById('lobby-msg').textContent = "🤝 Partner Connected! Starting Game...";
+            setTimeout(() => {
+              startGame();
+            }, 1000);
+          }
+        });
+      });
+    } catch(e) { console.error("Firebase err:", e); }
+  }
+
+  function forceStartSolo() {
+    document.getElementById('lobby-msg').textContent = "🎮 Launching Solo Mode...";
+    setTimeout(() => {
+      startGame();
+    }, 500);
+  }
+
+  function startGame() {
+    if (isGameStarted) return;
+    isGameStarted = true;
+
+    document.getElementById('lobby-modal').style.display = 'none';
+    startSynthMusic();
     startTimer();
+    requestAnimationFrame(gameLoop);
   }
 
   function startTimer() {
@@ -363,16 +491,22 @@
 
   function endGame() {
     isGameOver = true;
+    if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+
     let peerName = "Player 2";
     let peerScore = 0;
+    let hasPeer = false;
 
     for (let id in peerPlayers) {
       peerName = peerPlayers[id].name || "Player 2";
-      peerScore = peerPlayers[id].score || 0;
+      peerScore = Math.floor(peerPlayers[id].score || 0);
+      hasPeer = true;
     }
 
     let winnerText = "";
-    if (myState.score > peerScore) {
+    if (!hasPeer) {
+      winnerText = `🎉 SOLO WORKOUT COMPLETED!`;
+    } else if (myState.score > peerScore) {
       winnerText = `🎉 ${myName} WINS!`;
       confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
     } else if (peerScore > myState.score) {
@@ -381,79 +515,34 @@
       winnerText = "🤝 IT'S A TIE!";
     }
 
+    const finalScoreFormatted = Math.floor(myState.score);
+
     document.getElementById('winner-announcement').textContent = winnerText;
-    document.getElementById('final-stats').innerHTML = 
-      `<b>${myName}:</b> ${myState.score} pts<br><b>${peerName}:</b> ${peerScore} pts`;
+    document.getElementById('final-stats').innerHTML = hasPeer ?
+      `<b>${myName}:</b> ${finalScoreFormatted} pts<br><b>${peerName}:</b> ${peerScore} pts` :
+      `<b>${myName}:</b> ${finalScoreFormatted} pts`;
 
     document.getElementById('game-over-modal').style.display = 'flex';
 
     saveScoreToGoogleSheet(myState.score > peerScore ? "WINNER" : "COMPLETED");
   }
 
-  function initFirebase() {
-    try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.database();
-      playersRef = db.ref('yt_star_expedition/players');
-
-      playersRef.once('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        const activeIds = Object.keys(data);
-
-        if (activeIds.length >= 2) {
-          alert("Room Full! Max 2 Players currently connected.");
-          window.location.reload();
-          return;
-        }
-
-        myPlayerSlot = activeIds.length === 0 ? 1 : 2;
-        myState.x = myPlayerSlot === 1 ? canvas.width * 0.4 : canvas.width * 0.6;
-
-        playerRef = db.ref(`yt_star_expedition/players/${playerId}`);
-        playerRef.onDisconnect().remove();
-
-        playersRef.on('value', (snap) => {
-          const allData = snap.val() || {};
-          peerPlayers = {};
-          let count = 0;
-          for (let id in allData) {
-            if (id !== playerId) {
-              peerPlayers[id] = allData[id];
-              count++;
-            }
-          }
-          document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
-          document.getElementById('net-text').textContent = count > 0 ? `2 Players Online` : `Waiting for Player 2...`;
-        });
-
-        requestAnimationFrame(gameLoop);
-      });
-    } catch(e) { console.error("Firebase err:", e); }
-  }
-
-  // --- KEYBOARD CONTROLS ---
+  // --- CONTROLS: A & D STEPPING ---
   window.addEventListener('keydown', (e) => {
-    if (isGameOver) return;
+    if (isGameOver || !isGameStarted) return;
     const k = e.key.toLowerCase();
 
-    if (k === 'w' || e.key === 'ArrowUp') {
-      myState.baseY = Math.max(canvas.height * 0.55, myState.baseY - 20);
-    }
-    if (k === 's' || e.key === 'ArrowDown') {
-      if (!myState.isJumping) {
-        myState.isJumping = true;
-        myState.reboundVelocity = -22;
-      }
-    }
     if (k === 'a' || e.key === 'ArrowLeft') {
       myState.x = Math.max(40, myState.x - 35);
+      lastStepTime = Date.now();
     }
     if (k === 'd' || e.key === 'ArrowRight') {
       myState.x = Math.min(canvas.width - 40, myState.x + 35);
+      lastStepTime = Date.now();
     }
   });
 
-  // --- MICRO:BIT TILT CONTROLS ---
+  // --- CONTROLS: MICRO:BIT TILT & SWING ---
   async function connectMicrobit() {
     const statusDiv = document.getElementById('bit-status');
     try {
@@ -467,19 +556,34 @@
 
       await char.startNotifications();
       char.addEventListener('characteristicvaluechanged', (e) => {
-        if (isGameOver) return;
+        if (isGameOver || !isGameStarted) return;
         const view = e.target.value;
         const xTilt = view.getInt16(0, true);
+        const yTilt = view.getInt16(2, true);
+        const zTilt = view.getInt16(4, true);
 
-        if (xTilt < -300) myState.x = Math.max(40, myState.x - 12);
-        else if (xTilt > 300) myState.x = Math.min(canvas.width - 40, myState.x + 12);
+        if (xTilt < -300) {
+          myState.x = Math.max(40, myState.x - 12);
+          lastStepTime = Date.now();
+        } else if (xTilt > 300) {
+          myState.x = Math.min(canvas.width - 40, myState.x + 12);
+          lastStepTime = Date.now();
+        }
+
+        if (Math.abs(yTilt) > 1600 || Math.abs(zTilt) > 1600) {
+          if (!myState.isJumping) {
+            myState.isJumping = true;
+            myState.reboundVelocity = -22;
+            lastStepTime = Date.now();
+          }
+        }
       });
 
       statusDiv.style.color = "#22c55e";
-      statusDiv.textContent = "Micro:bit Tilt Active!";
+      statusDiv.textContent = "Micro:bit Motion & Swing Active!";
     } catch(err) {
       statusDiv.style.color = "#f59e0b";
-      statusDiv.textContent = "DDR Pad / Keyboard Active";
+      statusDiv.textContent = "DDR Pad Active";
     }
   }
 
@@ -487,6 +591,34 @@
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    const now = Date.now();
+    const isStepping = lastStepTime && (now - lastStepTime < STEP_TIMEOUT);
+    const container = document.getElementById('yt-bg-container');
+    const warning = document.getElementById('workout-warning');
+
+    // WORKOUT HALT & PENALTY CONTROL
+    if (!isStepping && lastStepTime !== 0) {
+      container.classList.add('halted');
+      warning.style.display = 'block';
+      if (ytPlayer && ytPlayer.pauseVideo && isVideoPlaying) {
+        ytPlayer.pauseVideo();
+        isVideoPlaying = false;
+      }
+
+      // 🔴 SCORE PENALTY: Decrease points when stopped
+      myState.score = Math.max(0, myState.score - 0.4);
+      document.getElementById('score-val').textContent = Math.floor(myState.score);
+
+    } else {
+      container.classList.remove('halted');
+      warning.style.display = 'none';
+      if (ytPlayer && ytPlayer.playVideo && !isVideoPlaying && lastStepTime !== 0) {
+        ytPlayer.playVideo();
+        isVideoPlaying = true;
+      }
+    }
+
+    // Jump Physics
     if (myState.isJumping) {
       myState.targetY += myState.reboundVelocity;
       myState.reboundVelocity += 1.2;
@@ -494,29 +626,29 @@
       if (myState.targetY >= myState.baseY) {
         myState.targetY = myState.baseY;
         myState.isJumping = false;
-        myState.baseY = Math.min(canvas.height * 0.88, myState.baseY + 15);
       }
     } else {
       myState.targetY = myState.baseY;
     }
 
-    // Render Stars
+    // Stars Logic
     for (let i = stars.length - 1; i >= 0; i--) {
       const s = stars[i];
-      s.y += s.speed;
+      if (isStepping || lastStepTime === 0) {
+        s.y += s.speed;
+      }
 
       ctx.font = '26px sans-serif';
       ctx.fillText(s.symbol, s.x, s.y);
 
       const dist = Math.hypot(myState.x - s.x, myState.targetY - s.y);
-      if (dist < 45) {
+      if (dist < 45 && isStepping) {
         playCollectSFX();
         myState.prizes++;
         myState.score += (s.symbol === '🎁' ? 50 : 20);
-        document.getElementById('score-val').textContent = myState.score;
+        document.getElementById('score-val').textContent = Math.floor(myState.score);
         confetti({ particleCount: 15, spread: 40, origin: { x: myState.x / canvas.width, y: myState.targetY / canvas.height } });
         stars.splice(i, 1);
-        
       } else if (s.y > canvas.height) {
         stars.splice(i, 1);
       }
@@ -536,7 +668,7 @@
         name: myName,
         x: myState.x,
         y: myState.targetY,
-        score: myState.score,
+        score: Math.floor(myState.score),
         prizes: myState.prizes,
         updated: Date.now()
       });
@@ -568,7 +700,7 @@
   }
 
   function saveScoreToGoogleSheet(resultStatus) {
-    if (!GOOGLE_SHEET_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) return;
+    if (!GOOGLE_SHEET_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL.includes("YOUR_NEW_GOOGLE_APPS_SCRIPT")) return;
 
     fetch(GOOGLE_SHEET_SCRIPT_URL, {
       method: "POST",
@@ -576,7 +708,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         playerName: myName,
-        score: myState.score,
+        score: Math.floor(myState.score),
         prizes: myState.prizes,
         result: resultStatus
       })
