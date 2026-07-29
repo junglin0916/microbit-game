@@ -23,7 +23,7 @@
       background: #000;
     }
 
-    /* 1. Youtube Center Video Background */
+    /* 1. YouTube Center Video Background */
     #yt-bg {
       position: absolute;
       top: 50%;
@@ -67,6 +67,7 @@
     .btn-action {
       background: #0284c7; color: #fff; border: none; padding: 8px 14px;
       border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-top: 6px;
+      margin-right: 4px;
     }
     .btn-action:hover { background: #0369a1; }
 
@@ -135,26 +136,24 @@
 <body>
 
 <div id="game-stage">
-  <!-- 1. Embedded YouTube Video Background (Muted) -->
+  <!-- 1. Embedded YouTube Video Background -->
   <iframe id="yt-bg" 
     src="https://www.youtube.com/embed/tAwJE-1z6z0?autoplay=1&mute=1&controls=0&loop=1&playlist=tAwJE-1z6z0&enablejsapi=1" 
     allow="autoplay" 
     frameborder="0">
   </iframe>
 
-  <!-- 2. Interactive Canvas for Players & Falling Stars -->
+  <!-- 2. Interactive Canvas -->
   <canvas id="canvas-overlay"></canvas>
 </div>
-
-<!-- Pixabay Royalty Free Background Audio -->
-<audio id="bg-audio" loop src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a731ef.mp3?filename=game-arcade-110250.mp3"></audio>
 
 <!-- Player HUD -->
 <div class="hud-panel">
   <div class="hud-title" id="player-tag">Player: Guest</div>
   <div class="hud-title" style="margin-top: 6px;">Score: <span id="score-val" style="color:#fde047">0</span></div>
+  <button class="btn-action" onclick="toggleAudio()">🎵 Play Music</button>
   <button class="btn-action" onclick="connectMicrobit()">📲 Connect Micro:bit</button>
-  <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 4px;">DDR Pad / WASD Active</div>
+  <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 6px;">DDR Pad / Keyboard Ready</div>
 </div>
 
 <div class="status-badge">
@@ -163,22 +162,59 @@
 </div>
 
 <div class="controls-hint">
-  <b>[W]</b> Step Forward &nbsp;|&nbsp; <b>[S]</b> Bounce Jump &nbsp;|&nbsp; <b>[A / D]</b> Grab Left / Right Stars
+  <b>[W]</b> Step Up &nbsp;|&nbsp; <b>[S]</b> Bounce Jump &nbsp;|&nbsp; <b>[A / D or Micro:bit Tilt]</b> Move Left / Right
 </div>
 
 <!-- Name Registration Modal -->
 <div id="name-modal">
   <div class="modal-box">
-    <h2 style="color: #38bdf8;">🎮 Join Arcade Expedition</h2>
-    <p style="font-size: 13px; color: #94a3b8; margin-top: 5px;">Enter your name to play & record on the Google Sheet Scoreboard!</p>
+    <h2 style="color: #38bdf8;">🎮 Join Star Rush Arcade</h2>
+    <p style="font-size: 13px; color: #94a3b8; margin-top: 5px;">Enter your name to play & sync your score!</p>
     <input type="text" id="player-name-input" placeholder="Enter Your Name / Student ID" maxlength="20">
-    <button class="btn-action" style="width: 100%; padding: 12px; font-size: 16px;" onclick="startGame()">Start Game</button>
+    <button class="btn-action" style="width: 100%; padding: 12px; font-size: 16px; margin-top:10px;" onclick="startGame()">Start Game & Music</button>
   </div>
 </div>
 
 <script>
   // --- PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ---
   const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbytkAaHgQ1g_zXy625h_TGENTV6_OBUyw7GRiEXtH0tyNuf8k06R3a3u4RcahzVWi7B/exec";
+
+  // --- AUDIO SYNTHESIZER & BACKGROUND MUSIC ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let bgMusicAudio = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a731ef.mp3?filename=game-arcade-110250.mp3");
+  bgMusicAudio.loop = true;
+  let isAudioPlaying = false;
+
+  function toggleAudio() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!isAudioPlaying) {
+      bgMusicAudio.play().then(() => {
+        isAudioPlaying = true;
+      }).catch(e => console.log("Audio play blocked", e));
+    } else {
+      bgMusicAudio.pause();
+      isAudioPlaying = false;
+    }
+  }
+
+  // Chime sound when collecting stars
+  function playCollectSFX() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.08); // E5
+    osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.16); // G5
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.25);
+  }
 
   // --- FIREBASE MULTIPLAYER SETUP ---
   const firebaseConfig = {
@@ -192,10 +228,8 @@
   };
 
   let db, playerRef, playersRef;
-  let myPlayerSlot = 1; // Slot 1 or 2
+  let myPlayerSlot = 1;
   let myName = "";
-  let myScore = 0;
-  let myPrizes = 0;
   let peerPlayers = {};
 
   const playerId = 'scout_' + Math.floor(Math.random() * 100000);
@@ -228,28 +262,24 @@
 
   function spawnStar() {
     const isLeft = Math.random() < 0.5;
-    const xPos = isLeft ? Math.random() * (canvas.width * 0.3) : canvas.width * 0.7 + Math.random() * (canvas.width * 0.3);
+    const xPos = isLeft ? Math.random() * (canvas.width * 0.32) : canvas.width * 0.68 + Math.random() * (canvas.width * 0.32);
     stars.push({
       x: xPos,
       y: -20,
       speed: 3 + Math.random() * 4,
-      radius: 14,
       symbol: Math.random() < 0.3 ? '🎁' : '⭐'
     });
   }
-  setInterval(spawnStar, 1200);
+  setInterval(spawnStar, 1000);
 
-  // --- START GAME & 2-PLAYER MAX ROOM GUARD ---
+  // --- START GAME ---
   function startGame() {
     const input = document.getElementById('player-name-input').value.trim();
     if (!input) { alert("Please enter your name!"); return; }
     myName = input;
     document.getElementById('player-tag').textContent = `You: ${myName}`;
 
-    // Start Audio
-    const audio = document.getElementById('bg-audio');
-    audio.play().catch(e => console.log("Audio waiting for touch"));
-
+    toggleAudio(); // Unlocks and starts music
     document.getElementById('name-modal').style.display = 'none';
 
     initFirebase();
@@ -278,7 +308,6 @@
         playerRef = db.ref(`yt_star_expedition/players/${playerId}`);
         playerRef.onDisconnect().remove();
 
-        // Listen for player updates
         playersRef.on('value', (snap) => {
           const allData = snap.val() || {};
           peerPlayers = {};
@@ -290,47 +319,47 @@
             }
           }
           document.getElementById('net-status').className = count > 0 ? 'indicator online' : 'indicator';
-          document.getElementById('net-text').textContent = count > 0 ? `2 Players Connected` : `Waiting for Player 2...`;
+          document.getElementById('net-text').textContent = count > 0 ? `2 Players Online` : `Waiting for Player 2...`;
         });
 
-        // Run game loop
         requestAnimationFrame(gameLoop);
       });
     } catch(e) { console.error("Firebase error:", e); }
   }
 
-  // --- CONTROLS & REBOUND JUMP MECHANIC ---
+  // --- CONTROLS: KEYBOARD / DDR PAD ---
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
 
-    // W: Steps upward slightly
+    // W: Step Up
     if (k === 'w' || e.key === 'ArrowUp') {
-      myState.baseY = Math.max(canvas.height * 0.55, myState.baseY - 18);
+      myState.baseY = Math.max(canvas.height * 0.55, myState.baseY - 20);
     }
 
-    // S: Fun Rebound Jump Mechanic (Springs forward then setbacks)
+    // S: Bounce Jump + Setback
     if (k === 's' || e.key === 'ArrowDown') {
       if (!myState.isJumping) {
         myState.isJumping = true;
-        myState.reboundVelocity = -22; // Jump leap
+        myState.reboundVelocity = -22;
       }
     }
 
     // A: Step Left
     if (k === 'a' || e.key === 'ArrowLeft') {
-      myState.x = Math.max(40, myState.x - 30);
+      myState.x = Math.max(40, myState.x - 35);
     }
 
     // D: Step Right
     if (k === 'd' || e.key === 'ArrowRight') {
-      myState.x = Math.min(canvas.width - 40, myState.x + 30);
+      myState.x = Math.min(canvas.width - 40, myState.x + 35);
     }
   });
 
-  // Micro:bit Bluetooth Motion Support
+  // --- CONTROLS: MICRO:BIT TILT (LEFT & RIGHT MANEUVER) ---
   async function connectMicrobit() {
     const statusDiv = document.getElementById('bit-status');
     try {
+      statusDiv.textContent = "Connecting to Micro:bit...";
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ namePrefix: 'BBC micro:bit' }],
         optionalServices: ['e95d0753-251d-470a-a062-fa1922dfa9a8']
@@ -342,73 +371,77 @@
       await char.startNotifications();
       char.addEventListener('characteristicvaluechanged', (e) => {
         const view = e.target.value;
-        const x = view.getInt16(0, true);
-        const y = view.getInt16(2, true);
+        const xTilt = view.getInt16(0, true); // Accelerometer X-axis
 
-        // Shake detection causes swing grab
-        if (Math.abs(x) > 1500) {
-          myState.x += (x > 0 ? 40 : -40);
+        // Tilt Left (Negative X)
+        if (xTilt < -300) {
+          myState.x = Math.max(40, myState.x - 12);
+        }
+        // Tilt Right (Positive X)
+        else if (xTilt > 300) {
+          myState.x = Math.min(canvas.width - 40, myState.x + 12);
         }
       });
+
       statusDiv.style.color = "#22c55e";
-      statusDiv.textContent = "Micro:bit Motion Connected";
+      statusDiv.textContent = "Micro:bit Tilt Active! (Tilt Left / Right)";
     } catch(err) {
-      statusDiv.textContent = "DDR Pad / Keyboard Ready";
+      statusDiv.style.color = "#f59e0b";
+      statusDiv.textContent = "DDR Pad / Keyboard Mode Active";
     }
   }
 
-  // --- GAME LOOP & RENDERING ---
+  // --- GAME LOOP ---
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply Rebound Physics for 'S' Jump
+    // Bounce Physics
     if (myState.isJumping) {
       myState.targetY += myState.reboundVelocity;
-      myState.reboundVelocity += 1.2; // Gravity
+      myState.reboundVelocity += 1.2;
 
-      // Rebound Setback logic
       if (myState.targetY >= myState.baseY) {
         myState.targetY = myState.baseY;
         myState.isJumping = false;
-        // Minor backward bounce setback
-        myState.baseY = Math.min(canvas.height * 0.88, myState.baseY + 12);
+        myState.baseY = Math.min(canvas.height * 0.88, myState.baseY + 15); // Setback recoil
       }
     } else {
       myState.targetY = myState.baseY;
     }
 
-    // Render & Update Falling Stars
+    // Render & Check Falling Stars
     for (let i = stars.length - 1; i >= 0; i--) {
       const s = stars[i];
       s.y += s.speed;
 
-      ctx.font = '24px sans-serif';
+      ctx.font = '26px sans-serif';
       ctx.fillText(s.symbol, s.x, s.y);
 
-      // Collision Detection with Player
+      // Collision Check
       const dist = Math.hypot(myState.x - s.x, myState.targetY - s.y);
       if (dist < 45) {
+        playCollectSFX();
         myState.prizes++;
         myState.score += (s.symbol === '🎁' ? 50 : 20);
         document.getElementById('score-val').textContent = myState.score;
         confetti({ particleCount: 15, spread: 40, origin: { x: myState.x / canvas.width, y: myState.targetY / canvas.height } });
         stars.splice(i, 1);
-        saveScoreToGoogleSheet("In Game Update");
+        saveScoreToGoogleSheet("In Game");
       } else if (s.y > canvas.height) {
         stars.splice(i, 1);
       }
     }
 
-    // Draw Peer Players (Player 2)
+    // Draw Peer (Player 2)
     for (let id in peerPlayers) {
       const p = peerPlayers[id];
       drawAvatar(p.x, p.y, p.name, false);
     }
 
-    // Draw My Player Avatar (Bottom Middle First-Person View)
+    // Draw Local Player
     drawAvatar(myState.x, myState.targetY, myName + " (You)", true);
 
-    // Update Firebase
+    // Sync to Firebase
     if (playerRef) {
       playerRef.set({
         name: myName,
@@ -423,11 +456,11 @@
     requestAnimationFrame(gameLoop);
   }
 
-  // Avatar Drawer
+  // Draw Avatar
   function drawAvatar(x, y, nameStr, isMe) {
     ctx.save();
     
-    // Player Glow Base
+    // Base Glow
     ctx.beginPath();
     ctx.arc(x, y + 10, 30, 0, Math.PI * 2);
     ctx.fillStyle = isMe ? 'rgba(56, 189, 248, 0.4)' : 'rgba(250, 204, 21, 0.4)';
@@ -452,7 +485,7 @@
     ctx.restore();
   }
 
-  // --- SAVE SCORE TO GOOGLE SHEET ---
+  // Post to Google Sheet
   function saveScoreToGoogleSheet(resultStatus) {
     if (!GOOGLE_SHEET_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) return;
 
@@ -466,7 +499,7 @@
         prizes: myState.prizes,
         result: resultStatus
       })
-    }).catch(err => console.error("Sheet Sync Error:", err));
+    }).catch(err => console.error("Sheet Error:", err));
   }
 </script>
 </body>
