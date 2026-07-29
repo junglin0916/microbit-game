@@ -516,7 +516,7 @@
         document.getElementById('score-val').textContent = myState.score;
         confetti({ particleCount: 15, spread: 40, origin: { x: myState.x / canvas.width, y: myState.targetY / canvas.height } });
         stars.splice(i, 1);
-        saveScoreToGoogleSheet("In Game");
+        
       } else if (s.y > canvas.height) {
         stars.splice(i, 1);
       }
