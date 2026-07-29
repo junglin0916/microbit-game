@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <title>PEAK: YouTube Co-Op Workout Challenge</title>
   
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+  <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <style>
@@ -63,19 +65,14 @@
       min-width: 250px;
     }
 
-    .hud-title { font-weight: 700; color: #38bdf8; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .hud-title { font-weight: 700; color: #38bdf8; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
 
     .btn-action {
-      background: #0284c7; color: #fff; border: none; padding: 8px 14px;
-      border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-top: 6px;
-      margin-right: 4px;
+      background: #0284c7; color: #fff; border: none; padding: 8px 12px;
+      border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 6px;
+      margin-right: 4px; display: inline-block;
     }
     .btn-action:hover { background: #0369a1; }
-
-    .btn-secondary {
-      background: #475569; color: #fff; border: none; padding: 8px 14px;
-      border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-top: 6px;
-    }
 
     .timer-badge {
       position: absolute;
@@ -96,7 +93,7 @@
 
     #workout-warning {
       position: absolute;
-      top: 40%;
+      top: 35%;
       left: 50%;
       transform: translate(-50%, -50%);
       background: rgba(225, 29, 72, 0.95);
@@ -110,6 +107,58 @@
       display: none;
       box-shadow: 0 0 40px rgba(225, 29, 72, 0.8);
       text-align: center;
+    }
+
+    /* STEP VISUALIZER & MULTIPLIER UI */
+    .rhythm-hud {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      z-index: 10;
+    }
+
+    .step-pads {
+      display: flex;
+      gap: 20px;
+    }
+
+    .pad-key {
+      width: 60px;
+      height: 60px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 3px solid #64748b;
+      border-radius: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      font-weight: bold;
+      color: #94a3b8;
+      transition: all 0.08s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+
+    .pad-key.active {
+      background: #22c55e;
+      border-color: #fde047;
+      color: #000;
+      transform: scale(1.15);
+      box-shadow: 0 0 25px #22c55e;
+    }
+
+    .multiplier-badge {
+      font-size: 18px;
+      font-weight: 900;
+      color: #38bdf8;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid #38bdf8;
     }
 
     .status-badge {
@@ -164,9 +213,9 @@
       left: 50%;
       transform: translateX(-50%);
       background: rgba(15, 23, 42, 0.88);
-      padding: 12px 24px;
+      padding: 10px 20px;
       border-radius: 30px;
-      font-size: 13px;
+      font-size: 12px;
       color: #fff;
       border: 1px solid rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(10px);
@@ -188,14 +237,25 @@
 
 <div class="timer-badge">⏱️ <span id="timer-val">03:00</span></div>
 
-<div id="workout-warning">🛑 WORKOUT PAUSED!<br><span style="font-size:14px; font-weight: normal; color: #fde047;">⚠️ Points are decreasing! Keep stepping to score!</span></div>
+<div id="workout-warning">🛑 WORKOUT PAUSED!<br><span style="font-size:14px; font-weight: normal; color: #fde047;">⚠️ Keep stepping to maintain score!</span></div>
+
+<!-- Rhythm & Step Visualizer -->
+<div class="rhythm-hud">
+  <div class="multiplier-badge" id="multiplier-tag">🔥 Rhythm: 1x Speed</div>
+  <div class="step-pads">
+    <div class="pad-key" id="pad-a">A</div>
+    <div class="pad-key" id="pad-d">D</div>
+  </div>
+</div>
 
 <div class="hud-panel">
   <div class="hud-title" id="player-tag">Player: Guest</div>
-  <div class="hud-title" style="margin-top: 6px;">Score: <span id="score-val" style="color:#fde047">0</span></div>
+  <div class="hud-title" style="margin-top: 4px;">Score: <span id="score-val" style="color:#fde047">0</span></div>
+  <div class="hud-title" style="margin-top: 2px;">Combo: <span id="combo-val" style="color:#38bdf8">0</span></div>
   <button class="btn-action" onclick="toggleMusic()">🎵 Music On/Off</button>
-  <button class="btn-action" onclick="connectMicrobit()">📲 Connect Micro:bit</button>
-  <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 6px;">DDR Pad / Keyboard Ready</div>
+  <button class="btn-action" onclick="connectMicrobit()">📲 Micro:bit</button>
+  <button class="btn-action" style="background:#16a34a;" onclick="saveScoreToGoogleSheet('MANUAL TEST')">💾 Save Data</button>
+  <div id="bit-status" style="font-size: 11px; color: #94a3b8; margin-top: 6px;">DDR Pad / Keyboard Active</div>
 </div>
 
 <div class="status-badge">
@@ -204,9 +264,10 @@
 </div>
 
 <div class="controls-hint">
-  <b>[A / D Pad]</b> Step Left/Right to Walk & Score &nbsp;|&nbsp; <b>[Micro:bit Swing]</b> Jump
+  <b>[A / D Pad]</b> Step Left/Right in Cadence for Multipliers &nbsp;|&nbsp; <b>[Micro:bit]</b> Swing to Jump
 </div>
 
+<!-- Step 1: Name Modal -->
 <div id="name-modal">
   <div class="modal-box">
     <h2 style="color: #38bdf8;">🎮 Workout Arcade</h2>
@@ -216,15 +277,16 @@
   </div>
 </div>
 
+<!-- Step 2: Lobby Modal -->
 <div id="lobby-modal">
   <div class="modal-box">
     <h2 style="color: #38bdf8;">⏳ Waiting Room</h2>
     <p id="lobby-msg" style="font-size: 14px; color: #fde047; margin: 15px 0;">Looking for Player 2...</p>
-    
     <button class="btn-action" style="width: 100%; padding: 12px; font-size: 16px;" onclick="forceStartSolo()">🏃 Play Solo Mode Now</button>
   </div>
 </div>
 
+<!-- Game Over Modal -->
 <div id="game-over-modal">
   <div class="modal-box">
     <h1 style="color: #fde047; font-size: 32px;">🏆 TIME'S UP!</h1>
@@ -234,10 +296,11 @@
   </div>
 </div>
 
+<!-- YouTube API Script -->
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <script>
-  // --- PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ---
+  // Google Apps Script Web App URL
   const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwpwo5bwlWQKvYLZwkfPPfi7pz55Skjn6QdAYY99533w0bEkNfae4YNfZW80MBOvj5i/exec";
 
   // --- YOUTUBE PLAYER CONTROL ---
@@ -333,7 +396,7 @@
     appId: "1:47052488466:web:2fac8b10617898aac3fdcb"
   };
 
-  let db, playerRef, playersRef, roomStateRef;
+  let db, playerRef, playersRef;
   let myPlayerSlot = 1;
   let myName = "";
   let peerPlayers = {};
@@ -352,7 +415,7 @@
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  // Local State
+  // State & Rhythm Multiplier Setup
   const myState = {
     x: window.innerWidth * 0.4,
     y: window.innerHeight * 0.85,
@@ -360,15 +423,16 @@
     targetY: window.innerHeight * 0.85,
     score: 0,
     prizes: 0,
+    combo: 0,
+    multiplier: 1,
     isJumping: false,
     reboundVelocity: 0
   };
 
-  // FORCED WORKOUT LOGIC
   let lastStepTime = 0;
-  const STEP_TIMEOUT = 1200; // 1.2s inactivity threshold
+  let previousStepTime = 0;
+  const STEP_TIMEOUT = 1200; 
 
-  // Timer
   let timeLeft = 180;
   let timerInterval = null;
   let isGameOver = false;
@@ -405,7 +469,6 @@
       firebase.initializeApp(firebaseConfig);
       db = firebase.database();
       playersRef = db.ref('yt_star_expedition/players');
-      roomStateRef = db.ref('yt_star_expedition/room_state');
 
       playersRef.once('value', (snapshot) => {
         const data = snapshot.val() || {};
@@ -432,7 +495,6 @@
           updated: Date.now()
         });
 
-        // Listen to room status (auto-start when 2 players join)
         playersRef.on('value', (snap) => {
           const allData = snap.val() || {};
           peerPlayers = {};
@@ -449,9 +511,7 @@
 
           if (count > 0 && !isGameStarted) {
             document.getElementById('lobby-msg').textContent = "🤝 Partner Connected! Starting Game...";
-            setTimeout(() => {
-              startGame();
-            }, 1000);
+            setTimeout(() => { startGame(); }, 1000);
           }
         });
       });
@@ -460,9 +520,7 @@
 
   function forceStartSolo() {
     document.getElementById('lobby-msg').textContent = "🎮 Launching Solo Mode...";
-    setTimeout(() => {
-      startGame();
-    }, 500);
+    setTimeout(() => { startGame(); }, 500);
   }
 
   function startGame() {
@@ -527,18 +585,54 @@
     saveScoreToGoogleSheet(myState.score > peerScore ? "WINNER" : "COMPLETED");
   }
 
-  // --- CONTROLS: A & D STEPPING ---
+  // --- STEP & RHYTHM DETECTOR ---
+  function registerStep(keyType) {
+    const now = Date.now();
+    const interval = now - lastStepTime;
+
+    // Light up visual buttons
+    const pad = document.getElementById(keyType === 'a' ? 'pad-a' : 'pad-d');
+    if (pad) {
+      pad.classList.add('active');
+      setTimeout(() => pad.classList.remove('active'), 120);
+    }
+
+    // Rhythm Cadence Calculation
+    if (interval > 200 && interval < 800) {
+      myState.combo++;
+      if (myState.combo >= 15) {
+        myState.multiplier = 3;
+      } else if (myState.combo >= 5) {
+        myState.multiplier = 2;
+      }
+    } else {
+      myState.multiplier = 1;
+      myState.combo = 1;
+    }
+
+    // Award Step Points boosted by Multiplier
+    myState.score += (2 * myState.multiplier);
+
+    // Update HUD tags
+    document.getElementById('score-val').textContent = Math.floor(myState.score);
+    document.getElementById('combo-val').textContent = myState.combo;
+    document.getElementById('multiplier-tag').textContent = `🔥 Rhythm: ${myState.multiplier}x Multiplier`;
+
+    lastStepTime = now;
+  }
+
+  // --- CONTROLS: KEYBOARD STEPPING ---
   window.addEventListener('keydown', (e) => {
     if (isGameOver || !isGameStarted) return;
     const k = e.key.toLowerCase();
 
     if (k === 'a' || e.key === 'ArrowLeft') {
-      myState.x = Math.max(40, myState.x - 35);
-      lastStepTime = Date.now();
+      myState.x = Math.max(40, myState.x - 30);
+      registerStep('a');
     }
     if (k === 'd' || e.key === 'ArrowRight') {
-      myState.x = Math.min(canvas.width - 40, myState.x + 35);
-      lastStepTime = Date.now();
+      myState.x = Math.min(canvas.width - 40, myState.x + 30);
+      registerStep('d');
     }
   });
 
@@ -564,17 +658,17 @@
 
         if (xTilt < -300) {
           myState.x = Math.max(40, myState.x - 12);
-          lastStepTime = Date.now();
+          registerStep('a');
         } else if (xTilt > 300) {
           myState.x = Math.min(canvas.width - 40, myState.x + 12);
-          lastStepTime = Date.now();
+          registerStep('d');
         }
 
         if (Math.abs(yTilt) > 1600 || Math.abs(zTilt) > 1600) {
           if (!myState.isJumping) {
             myState.isJumping = true;
             myState.reboundVelocity = -22;
-            lastStepTime = Date.now();
+            registerStep('a');
           }
         }
       });
@@ -596,7 +690,7 @@
     const container = document.getElementById('yt-bg-container');
     const warning = document.getElementById('workout-warning');
 
-    // WORKOUT HALT & PENALTY CONTROL
+    // INACTIVITY PENALTY & PAUSE CONTROL
     if (!isStepping && lastStepTime !== 0) {
       container.classList.add('halted');
       warning.style.display = 'block';
@@ -605,9 +699,14 @@
         isVideoPlaying = false;
       }
 
-      // 🔴 SCORE PENALTY: Decrease points when stopped
+      // 🔴 Score decrease on stopping
       myState.score = Math.max(0, myState.score - 0.4);
+      myState.combo = 0;
+      myState.multiplier = 1;
+
       document.getElementById('score-val').textContent = Math.floor(myState.score);
+      document.getElementById('combo-val').textContent = 0;
+      document.getElementById('multiplier-tag').textContent = `🔥 Rhythm: 1x Speed`;
 
     } else {
       container.classList.remove('halted');
@@ -645,7 +744,7 @@
       if (dist < 45 && isStepping) {
         playCollectSFX();
         myState.prizes++;
-        myState.score += (s.symbol === '🎁' ? 50 : 20);
+        myState.score += (s.symbol === '🎁' ? 50 : 20) * myState.multiplier;
         document.getElementById('score-val').textContent = Math.floor(myState.score);
         confetti({ particleCount: 15, spread: 40, origin: { x: myState.x / canvas.width, y: myState.targetY / canvas.height } });
         stars.splice(i, 1);
@@ -699,20 +798,26 @@
     ctx.restore();
   }
 
+  // --- GOOGLE SHEETS DATA SAVER ---
   function saveScoreToGoogleSheet(resultStatus) {
-    if (!GOOGLE_SHEET_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL.includes("YOUR_NEW_GOOGLE_APPS_SCRIPT")) return;
+    if (!GOOGLE_SHEET_SCRIPT_URL) {
+      alert("⚠️ Google Apps Script URL missing!");
+      return;
+    }
 
     fetch(GOOGLE_SHEET_SCRIPT_URL, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        playerName: myName,
+        playerName: myName || "Test Player",
         score: Math.floor(myState.score),
         prizes: myState.prizes,
         result: resultStatus
       })
-    }).catch(err => console.error("Sheet Error:", err));
+    })
+    .then(() => alert(`✅ Score sent to Google Sheet! (${Math.floor(myState.score)} pts)`))
+    .catch(err => console.error("Sheet Error:", err));
   }
 </script>
 </body>
