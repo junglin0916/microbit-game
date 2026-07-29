@@ -430,7 +430,6 @@
   };
 
   let lastStepTime = 0;
-  let previousStepTime = 0;
   const STEP_TIMEOUT = 1200; 
 
   let timeLeft = 180;
@@ -621,9 +620,11 @@
     lastStepTime = now;
   }
 
-  // --- CONTROLS: KEYBOARD STEPPING ---
+  // --- CONTROLS: KEYBOARD & USB DDR PAD STEPPING ---
   window.addEventListener('keydown', (e) => {
     if (isGameOver || !isGameStarted) return;
+    if (e.repeat) return; // 🛑 Prevents held-down keys / mat pads from spamming steps!
+
     const k = e.key.toLowerCase();
 
     if (k === 'a' || e.key === 'ArrowLeft') {
@@ -637,6 +638,8 @@
   });
 
   // --- CONTROLS: MICRO:BIT TILT & SWING ---
+  let microbitNeutral = true;
+
   async function connectMicrobit() {
     const statusDiv = document.getElementById('bit-status');
     try {
@@ -656,19 +659,27 @@
         const yTilt = view.getInt16(2, true);
         const zTilt = view.getInt16(4, true);
 
-        if (xTilt < -300) {
-          myState.x = Math.max(40, myState.x - 12);
-          registerStep('a');
-        } else if (xTilt > 300) {
-          myState.x = Math.min(canvas.width - 40, myState.x + 12);
-          registerStep('d');
+        // --- TILT DEADZONE & NEUTRAL RECOVERY ---
+        if (Math.abs(xTilt) < 250) {
+          // Reset to neutral flat center
+          microbitNeutral = true;
+        } else if (microbitNeutral) {
+          if (xTilt < -500) {
+            myState.x = Math.max(40, myState.x - 20);
+            registerStep('a');
+            microbitNeutral = false; // Block further input until returned to flat
+          } else if (xTilt > 500) {
+            myState.x = Math.min(canvas.width - 40, myState.x + 20);
+            registerStep('d');
+            microbitNeutral = false; // Block further input until returned to flat
+          }
         }
 
-        if (Math.abs(yTilt) > 1600 || Math.abs(zTilt) > 1600) {
+        // --- JUMP SWING SENSITIVITY ---
+        if (Math.abs(yTilt) > 1800 || Math.abs(zTilt) > 1800) {
           if (!myState.isJumping) {
             myState.isJumping = true;
             myState.reboundVelocity = -22;
-            registerStep('a');
           }
         }
       });
@@ -677,7 +688,7 @@
       statusDiv.textContent = "Micro:bit Motion & Swing Active!";
     } catch(err) {
       statusDiv.style.color = "#f59e0b";
-      statusDiv.textContent = "DDR Pad Active";
+      statusDiv.textContent = "DDR Pad / Keyboard Active";
     }
   }
 
